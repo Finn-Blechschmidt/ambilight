@@ -18,7 +18,7 @@ Usage:
 """
 import argparse, signal, sys, time
 
-from rpi_ws281x import PixelStrip, Color, WS2811_STRIP_RGB
+from rpi_ws281x import PixelStrip, Color, WS2811_STRIP_RGB, SK6812_STRIP_RGBW
 
 LED_COUNT = 109
 LED_PIN = 18
@@ -26,10 +26,11 @@ MAX_BRIGHTNESS = 32
 MAX_LIT = 8
 
 
-def make_strip(brightness):
+def make_strip(brightness, freq=800000, rgbw=False):
     brightness = max(0, min(int(brightness), MAX_BRIGHTNESS))
     # args: count, pin, freq, dma channel, invert, brightness, pwm channel, strip type
-    strip = PixelStrip(LED_COUNT, LED_PIN, 800000, 10, False, brightness, 0, WS2811_STRIP_RGB)
+    strip = PixelStrip(LED_COUNT, LED_PIN, freq, 10, False, brightness, 0,
+                       SK6812_STRIP_RGBW if rgbw else WS2811_STRIP_RGB)
     strip.begin()
     return strip
 
@@ -40,12 +41,12 @@ def clear(strip):
     strip.show()
 
 
-def set_leds(strip, leds):
+def set_leds(strip, leds, rgbw=False):
     if len(leds) > MAX_LIT:
         raise SystemExit(f"refusing to light {len(leds)} LEDs (limit {MAX_LIT})")
     clear(strip)
     for idx, (r, g, b) in leds.items():
-        strip.setPixelColor(idx, Color(r, g, b))
+        strip.setPixelColor(idx, Color(r, g, b, 255 if rgbw else 0))
     strip.show()
 
 
@@ -56,12 +57,14 @@ def main():
     p.add_argument("--start", type=int, default=0)
     p.add_argument("--stop", type=int, default=20)
     p.add_argument("--count", type=int, default=1)
+    p.add_argument("--freq", type=int, default=800000, choices=[400000, 800000], help="data rate in Hz")
+    p.add_argument("--rgbw", action="store_true", help="32-bit LEDs (SK6812 RGBW)")
     p.add_argument("--stream", action="store_true", help="mark: resend the frame every 10 ms (for signal measurements)")
     p.add_argument("--brightness", type=int, default=10)
     p.add_argument("--delay", type=float, default=1.0)
     a = p.parse_args()
 
-    strip = make_strip(a.brightness)
+    strip = make_strip(a.brightness, a.freq, a.rgbw)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: sys.exit(0))
     try:
@@ -79,7 +82,7 @@ def main():
                 time.sleep(a.delay)
         elif a.mode == "mark":
             idxs = range(a.index, min(a.index + a.count, LED_COUNT))
-            set_leds(strip, {i: (255, 255, 255) for i in idxs})
+            set_leds(strip, {i: (255, 255, 255) for i in idxs}, a.rgbw)
             print(f"LEDs {idxs.start}..{idxs.stop - 1} on, Ctrl-C to stop", flush=True)
             while True:
                 if a.stream:
