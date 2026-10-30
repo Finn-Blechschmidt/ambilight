@@ -56,6 +56,7 @@ def main():
     p.add_argument("--start", type=int, default=0)
     p.add_argument("--stop", type=int, default=20)
     p.add_argument("--count", type=int, default=1)
+    p.add_argument("--stream", action="store_true", help="mark: resend the frame every 10 ms (for signal measurements)")
     p.add_argument("--brightness", type=int, default=10)
     p.add_argument("--delay", type=float, default=1.0)
     a = p.parse_args()
@@ -81,7 +82,9 @@ def main():
             set_leds(strip, {i: (255, 255, 255) for i in idxs})
             print(f"LEDs {idxs.start}..{idxs.stop - 1} on, Ctrl-C to stop", flush=True)
             while True:
-                time.sleep(1)
+                if a.stream:
+                    strip.show()
+                time.sleep(0.01 if a.stream else 1)
     finally:
         clear(strip)
 
