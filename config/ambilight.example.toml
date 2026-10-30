@@ -1,6 +1,6 @@
 # Example configuration. Copy to ambilight.local.toml and adjust.
-# Values are placeholders until M2 (LED layout) is verified with the hardware.
 [leds]
-count = 0            # unknown until M2
-gpio_pin = 0         # unknown until M2
-color_order = "GRB"  # unverified
+# Layout from the sketch: bottom 17 + gap of 1 LED + 17, right 20, top 35, left 20.
+count = 109
+gpio_pin = 18          # Pin 12, PWM0
+color_order = "GRB"    # unverified, see M2

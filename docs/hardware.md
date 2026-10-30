@@ -37,3 +37,27 @@ Bisher keine. Vorhanden: `rsync`, `python3`, `v4l2-ctl`. Nicht vorhanden: `git`,
 - Grabber im Betrieb abgezogen (`lsusb` zeigt kein 05e1), Pi lief weiter (Uptime 8 bis 10 min). Über 3 Minuten unverändert: `get_throttled` = `0x50005` (Unterspannung und Throttling aktuell aktiv), 77,4 °C, nur 1 Unterspannungsmeldung in `dmesg` seit dem Boot.
 - Ergebnis: Der Grabber ist nicht die Ursache. Der Pi sieht im Leerlauf ohne USB-Last dauerhaft zu wenig Eingangsspannung, mit zwei Kabeln und zwei Versorgungen. Verdacht: hoher Widerstand im Eingangspfad des Pi (Micro-USB-Buchse, Sicherung/Polyfuse) oder Netzteile, die unter 4,63 V liegen.
 - Nächster Test: 5 V direkt am GPIO-Header einspeisen (umgeht Buchse und Sicherung).
+
+## LED-Streifen: Layout und Stromrechnung (2026-10-30)
+Angaben von Finn (Skizze): Start unten in der Mitte rechts neben einer Lücke von einer LED. Unten links 17 und unten rechts 17 LEDs, rechts 20, oben 35, links 20. Gesamt **109 LEDs** (17+17+20+20+35). Datenleitung an GPIO 18 (Pin 12), Masse an Pin 6. Laufrichtung (rechts oder links herum) und Farbreihenfolge sind noch nicht verifiziert (M2).
+
+| Größe | Wert |
+|---|---|
+| LEDs | 109 |
+| Strom pro LED bei Vollweiß (WS2812B) | ca. 60 mA (3 x 20 mA) |
+| Maximalstrom aller LEDs | 109 x 60 mA = 6,5 A |
+| Netzteil S-50-5 | 5 V / 10 A (50 W) |
+| Reserve bei Vollweiß | 3,5 A, ohne Pi |
+
+Folgerungen:
+- Das Netzteil trägt den Maximalstrom, aber 6,5 A über einen langen Streifen führt zu Spannungsabfall (Weißanteil wird gelblich). Die Software begrenzt die Summe auf einen Strom, der in der Config steht (Standard für die Tests: sehr niedrig).
+- Teststrom: 1 LED mit Helligkeit 10 von 255 zieht rund 60 mA x 10/255 = 2,4 mA bei Weiß, bei einer Farbe weniger. Die übrigen 108 LEDs bekommen Schwarz (Ruhestrom je LED ca. 1 mA, rund 0,1 A insgesamt).
+- Der Pi hängt aktuell an einem eigenen Ladegerät, die Masse ist über Pin 6 mit dem Streifen verbunden (gemeinsame Masse nötig).
+- WS2812B erwartet am Dateneingang mindestens 0,7 x VDD = 3,5 V. Der Pi liefert 3,3 V. Das funktioniert oft mit kurzer Leitung, ist aber ein bekanntes Risiko und wird im Test beobachtet (Flackern, falsche Farben, erste LED reagiert nicht).
+
+## Systemänderungen am Pi (Stand LED-Vorbereitung)
+`deploy/setup.sh` führt aus (mit sudo, per Hand von Finn):
+- Pakete: `rsync python3 python3-venv python3-dev scons gcc v4l-utils`.
+- `/boot/firmware/config.txt`: `dtparam=audio=on` -> `dtparam=audio=off` (analoges Audio belegt den PWM-Block für GPIO 18). Neustart nötig.
+- Persistentes systemd-Journal (`/var/log/journal`), damit nach einem Absturz ein Log bleibt.
+- Python-venv `~/ambilight/.venv` mit `rpi_ws281x`.
