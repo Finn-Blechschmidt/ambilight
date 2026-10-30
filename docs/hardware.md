@@ -61,3 +61,8 @@ Folgerungen:
 - `/boot/firmware/config.txt`: `dtparam=audio=on` -> `dtparam=audio=off` (analoges Audio belegt den PWM-Block für GPIO 18). Neustart nötig.
 - Persistentes systemd-Journal (`/var/log/journal`), damit nach einem Absturz ein Log bleibt.
 - Python-venv `~/ambilight/.venv` mit `rpi_ws281x`.
+
+### Erster LED-Test (2026-10-30): keine LED leuchtet
+- Software: `tools/led_test.py color` (LED 0, Helligkeit 10) und `mark --count 5` (Helligkeit 32) laufen ohne Fehler. Nach dem Lauf steht GPIO 18 laut `pinctrl get 18` auf `a5` = `PWM0`. Die Ausgabe am Pi ist also konfiguriert. Ob am Pin tatsächlich ein Signal anliegt und ankommt, ist damit nicht belegt.
+- Offen (nur physisch prüfbar): Welcher Header-Pin trägt das gelbe Kabel (Foto nicht eindeutig), Anschlussbelegung des 3-adrigen JST-Steckers am Streifen (rot/grün/weiß, vermutlich rot +5 V, grün Daten, weiß GND, ungeprüft), Spannung am Streifen, gemeinsame Masse.
+- Beobachtungen auf den Fotos: S-50-5 läuft (grüne LED an), Netzklemmen sind mit einer durchsichtigen Kappe abgedeckt, ein graues Kabel liegt quer über der Abdeckung. Die Pfeile auf dem Streifen zeigen vom Anschlussende weg (Hinweis, dass der Stecker am Dateneingang sitzt, nicht bestätigt).
