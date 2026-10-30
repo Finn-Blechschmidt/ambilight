@@ -74,3 +74,9 @@ Verkabelung laut Finn: gelbes Kabel Pin 12 (GPIO 18) auf grüne Ader am Streifen
 - Mit Stream: 15 000 bis 27 000 Pegelwechsel pro Sekunde, 8 bis 12 % high.
 - Pulsbreiten (4 Mio. Lesevorgänge, 111 265 High-Pulse): 300 bis 599 ns, Schwerpunkt 400 bis 499 ns. Flanke zu Flanke: 1100 bis 1399 ns, Schwerpunkt 1200 bis 1299 ns. Das entspricht dem WS2812B-Timing (800 kHz, Null-Bit ca. 0,4 µs high, Periode 1,25 µs).
 - Ergebnis: Der Pi erzeugt das richtige Signal am Pin. Der Fehler liegt dahinter: Pegel (3,3 V statt der geforderten mind. 3,5 V bei 5 V Versorgung), Kontakt, gemeinsame Masse oder der Dateneingang des Streifens. Die Amplitude kann mit dieser Messung nicht beurteilt werden.
+
+### Streifentyp und Pegeltest (2026-10-30)
+- Foto der Pads: 5050-LEDs mit Kondensator `C1` je LED, Pads `+5V / DO / GND` und `+5V / Din / GND`, Pfeil zeigt Richtung Datenfluss. Drei Adern, also kein APA102. Passt zur WS2812B-Familie, 5 V sicher laut Finn.
+- Die vier Varianten `led_test.py mark --stream` (800/400 kHz, 24/32 Bit) liefen am Streifen ohne sichtbare Reaktion.
+- `pinctrl`-Test (ohne Root): GPIO 18 als Ausgang auf High gesetzt liest `hi`, auf Low gesetzt `lo`. Der Pin ist also nicht hart gegen Masse oder 5 V kurzgeschlossen. Die Pull-up/Pull-down-Messung ist unbrauchbar (auch unbelegte Pins 24 und 25 lesen `lo`, `pinctrl` setzt die Pulls auf dem BCM2837 offenbar nicht).
+- Offen: Amplitude am Streifenende, Durchgang der Datenader, Zustand des ersten LED-Chips.
