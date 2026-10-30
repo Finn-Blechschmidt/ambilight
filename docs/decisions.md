@@ -33,3 +33,16 @@ Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
 - Ränder: ca. 8 Pixel schwarz links/rechts/oben/unten (Luma ~26-35 statt ~215 im Bild). Das ist Overscan/Austastung und wird später beim Zuschnitt entfernt.
 - **Problem: Das Bild ist komplett schwarzweiß.** U und V sind in allen Pixeln exakt 128 (Chroma 0,0). Das gilt für PAL-BG, PAL-N, PAL-Nc, SECAM, PAL-60, NTSC-443 und den Default. Die Decoder-Farbverstärkung steht per AGC auf 15 (Default 40), der Decoder sieht also keinen Farbträger.
 - Einordnung: Die Normumschaltung ändert nichts. Wahrscheinlich liefert die Kette (Konverter oder Quelle) kein Farbsignal. Treiberseitig gibt es keinen Hinweis auf einen Fehler. Ohne Farbe wäre das Ambilight nutzlos, das Problem blockiert M1.
+
+## ADR-003: Entwicklung auf dem defekten Pi fortsetzen, Messungen auf den Ersatz-Pi verschieben
+- Datum: 2026-10-30
+- Kontext: Der Pi meldet dauerhaft Unterspannung (`get_throttled=0x50005`), auch ohne Grabber, mit zwei Kabeln und zwei Netzteilen. Die Platine ist sichtbar verbogen, Finn vermutet einen Hardwaredefekt und bestellt einen Ersatz-Pi 3B+.
+- Betrachtete Optionen:
+  1. Stoppen, bis der neue Pi da ist. Vorteil: keine Messung auf kaputter Hardware. Nachteil: Stillstand, obwohl der Großteil der Arbeit hardwareunabhängig ist.
+  2. Weiterentwickeln auf dem alten Pi, Messungen und LED-Tests später auf dem neuen. Vorteil: Fortschritt. Nachteil: Ergebnisse vom alten Pi sind nur eingeschränkt gültig.
+  3. Image vom alten Pi auf den neuen klonen. Vorteil: schnell. Nachteil: übernimmt Altlasten und ist nicht reproduzierbar dokumentiert.
+- Entscheidung: Option 2, und der neue Pi wird per `deploy/setup.sh` eingerichtet statt per Image-Klon.
+- Begründung: Capture, Pipeline-Logik, Farbmathematik, Glättung und Tests laufen hardwareunabhängig. Das Setup-Skript erfüllt die Pflicht, ein frisches Image reproduzierbar einzurichten (Arbeitsregel 4).
+- Was auf dem alten Pi NICHT belastbar ist: CPU-Last, Latenz, FPS unter Last, Temperatur, jede Zeitmessung (Takt ist durch Unterspannung begrenzt, im Leerlauf 600 MHz). Die Sprachwahl (ADR) wird deshalb erst nach Messungen auf dem neuen Pi festgelegt, bis dahin entsteht nur sprachunabhängiger Code und Doku.
+- LEDs: Der erste LED-Test (M2) findet nur auf dem neuen Pi statt. Der Streifen ist zeitkritisch (Takt), und eine verbogene, unterversorgte Platine ist ein unnötiges Risiko für Pi und LEDs.
+- Konsequenzen/Trade-offs: Ein Teil der Meilensteine (M3 bis M6) schiebt sich nach hinten. Messwerte von heute werden in `benchmarks.md` als „alter Pi, ungültig“ markiert.
