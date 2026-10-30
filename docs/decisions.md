@@ -27,3 +27,9 @@ Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
 - Erkenntnis: Der HDMI-to-AV-Konverter gibt ohne HDMI-Signal ein graues 8-Balken-Bild mit Text „NO SIGNAL“ aus. Die Signalüberwachung (M5) muss dieses Muster erkennen (Graustufen, keine Farbe), sonst zeigen die LEDs Müll.
 - Noch offen: Bild mit echter Quelle prüfen, Interlacing-Verhalten und Overscan-Ränder beurteilen, Frame-Timing messen. Die Aufnahme zeigte schwarze Ränder links und unten. `VIDIOC_CREATE_BUFS` meldet einen harmlosen Fehler von v4l2-ctl.
 - Konsequenzen/Trade-offs: PAL ist fest verdrahtet, solange die Config nichts anderes sagt.
+
+### Nachtrag ADR-002 (2026-10-30): Bild mit echter Quelle
+- Mit laufender Quelle: stabiles Bild, gemessen 25,00 fps (100 Frames, `v4l2-ctl --stream-count=100`), 720x576.
+- Ränder: ca. 8 Pixel schwarz links/rechts/oben/unten (Luma ~26-35 statt ~215 im Bild). Das ist Overscan/Austastung und wird später beim Zuschnitt entfernt.
+- **Problem: Das Bild ist komplett schwarzweiß.** U und V sind in allen Pixeln exakt 128 (Chroma 0,0). Das gilt für PAL-BG, PAL-N, PAL-Nc, SECAM, PAL-60, NTSC-443 und den Default. Die Decoder-Farbverstärkung steht per AGC auf 15 (Default 40), der Decoder sieht also keinen Farbträger.
+- Einordnung: Die Normumschaltung ändert nichts. Wahrscheinlich liefert die Kette (Konverter oder Quelle) kein Farbsignal. Treiberseitig gibt es keinen Hinweis auf einen Fehler. Ohne Farbe wäre das Ambilight nutzlos, das Problem blockiert M1.
