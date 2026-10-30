@@ -32,3 +32,8 @@ Bisher keine. Vorhanden: `rsync`, `python3`, `v4l2-ctl`. Nicht vorhanden: `git`,
 ### Test mit Voltcraft-DO-10-Kabel am OnePlus-Ladegerät (2026-10-30)
 - Pi startete normal, per LAN unter <pi-address> erreichbar. Nach 2 Minuten: `get_throttled` = `0x50005`, 1 Unterspannungsmeldung in `dmesg`, 75,2 °C im Leerlauf.
 - Unterspannung bleibt aktiv, das Kabel ist nicht (allein) die Ursache. Nächster Test: anderes Netzteil.
+
+### Test ohne Grabber (2026-10-30)
+- Grabber im Betrieb abgezogen (`lsusb` zeigt kein 05e1), Pi lief weiter (Uptime 8 bis 10 min). Über 3 Minuten unverändert: `get_throttled` = `0x50005` (Unterspannung und Throttling aktuell aktiv), 77,4 °C, nur 1 Unterspannungsmeldung in `dmesg` seit dem Boot.
+- Ergebnis: Der Grabber ist nicht die Ursache. Der Pi sieht im Leerlauf ohne USB-Last dauerhaft zu wenig Eingangsspannung, mit zwei Kabeln und zwei Versorgungen. Verdacht: hoher Widerstand im Eingangspfad des Pi (Micro-USB-Buchse, Sicherung/Polyfuse) oder Netzteile, die unter 4,63 V liegen.
+- Nächster Test: 5 V direkt am GPIO-Header einspeisen (umgeht Buchse und Sicherung).
