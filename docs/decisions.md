@@ -46,3 +46,10 @@ Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
 - Was auf dem alten Pi NICHT belastbar ist: CPU-Last, Latenz, FPS unter Last, Temperatur, jede Zeitmessung (Takt ist durch Unterspannung begrenzt, im Leerlauf 600 MHz). Die Sprachwahl (ADR) wird deshalb erst nach Messungen auf dem neuen Pi festgelegt, bis dahin entsteht nur sprachunabhängiger Code und Doku.
 - LEDs: Der erste LED-Test (M2) findet nur auf dem neuen Pi statt. Der Streifen ist zeitkritisch (Takt), und eine verbogene, unterversorgte Platine ist ein unnötiges Risiko für Pi und LEDs.
 - Konsequenzen/Trade-offs: Ein Teil der Meilensteine (M3 bis M6) schiebt sich nach hinten. Messwerte von heute werden in `benchmarks.md` als „alter Pi, ungültig“ markiert.
+
+### Nachtrag ADR-002 (2026-10-30, 2): Farbtest mit bunter Quelle
+- `tools/capture_frame.sh` funktioniert (Deploy, Capture, Konvertierung, Statistik in einem Befehl).
+- Quelle: YouTube „Ambilight Color Test – All Colors“ (Farbrad). Aufnahme: komplett grau, Chroma 0,00/0,00. Die Quelle ist also bunt, die Farbe geht zwischen Konverter und Decoder verloren.
+- Eingänge 0 bis 3 liefern identische Bilder (Luma 86), Eingang 4 (S-Video) nur Schwarz (Luma 26). Es gibt physisch nur einen Composite-Eingang.
+- Decoder laut `dmesg`: `saa7113 found @ 0x4a (stk1160)`.
+- Konverter-Schalter stand auf PAL, Grabber auf PAL, Chroma blieb 0. Als Nächstes: Konverter auf NTSC, Grabber auf NTSC, Frame prüfen.
