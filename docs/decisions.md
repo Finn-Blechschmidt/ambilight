@@ -21,7 +21,7 @@ Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
 - Betrachtete Optionen:
   1. Norm automatisch erkennen lassen (`PAL|NTSC`). Vorteil: kein Eingriff nötig. Nachteil: Der Treiber startet in NTSC, Erkennung wurde nicht geprüft und kann bei Signalverlust springen.
   2. Norm fest auf PAL setzen (aus Config). Vorteil: deterministisch, 720x576 sofort. Nachteil: nicht für NTSC-Quellen, für diesen Aufbau irrelevant.
-- Entscheidung (vorläufig, M1): Eingang 0 (Composite0), Norm PAL (`v4l2-ctl -s pal`), Format UYVY 720x576, Feld Interlaced. Der Treiber bietet nur UYVY an.
+- Entscheidung (vorläufig, M1): Eingang 0 (Composite0), Norm PAL (revidiert durch ADR-004, jetzt NTSC) (`v4l2-ctl -s pal`), Format UYVY 720x576, Feld Interlaced. Der Treiber bietet nur UYVY an.
 - Begründung: Mit diesen Werten kam beim ersten Versuch ein stabiles Bild. Die Werte kommen später aus der Config.
 - Messung/Beleg: Ein Frame (829440 Bytes = 720*576*2) aufgenommen, per `tools/uyvy2png.py` konvertiert. Zu sehen ist das Konverter-Testbild „NO SIGNAL“, die Signalquelle war aus. Der Grabber synchronisiert also sauber auf den Konverter.
 - Erkenntnis: Der HDMI-to-AV-Konverter gibt ohne HDMI-Signal ein graues 8-Balken-Bild mit Text „NO SIGNAL“ aus. Die Signalüberwachung (M5) muss dieses Muster erkennen (Graustufen, keine Farbe), sonst zeigen die LEDs Müll.
@@ -53,3 +53,17 @@ Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
 - Eingänge 0 bis 3 liefern identische Bilder (Luma 86), Eingang 4 (S-Video) nur Schwarz (Luma 26). Es gibt physisch nur einen Composite-Eingang.
 - Decoder laut `dmesg`: `saa7113 found @ 0x4a (stk1160)`.
 - Konverter-Schalter stand auf PAL, Grabber auf PAL, Chroma blieb 0. Als Nächstes: Konverter auf NTSC, Grabber auf NTSC, Frame prüfen.
+
+## ADR-004: NTSC statt PAL am Konverter und Grabber (revidiert ADR-002)
+- Datum: 2026-10-30
+- Kontext: Mit Konverter und Grabber auf PAL kam das Bild komplett schwarzweiß an (Chroma exakt 0, ADR-002 Nachträge). Normwechsel am Grabber allein (PAL-BG/N/Nc, SECAM, PAL-60, NTSC-443) änderte nichts. Der Konverter hat einen PAL/NTSC-Schalter.
+- Betrachtete Optionen:
+  1. PAL beibehalten (625 Zeilen, 25 Hz, 720x576). Vorteil: mehr Zeilen. Nachteil: kein Farbsignal, damit unbrauchbar.
+  2. Konverter und Grabber auf NTSC (525 Zeilen, ca. 29,97 Hz, 720x480). Vorteil: Farbe kommt an, höhere Bildrate, kürzere Frameabstände. Nachteil: weniger Zeilen (für Ambilight-Ränder irrelevant).
+  3. Anderen Konverter oder Eingang suchen. Nicht nötig geworden.
+- Entscheidung: Option 2. Konverter-Schalter auf NTSC, Grabber `ntsc-m`, 720x480, UYVY, interlaced.
+- Begründung: Es ist die einzige getestete Konfiguration, in der Farbe ankommt.
+- Messung/Beleg: Test mit „Ambilight Color Test“ als Quelle. PAL: Chroma 0,00/0,00. NTSC-M: Chroma 27,96/26,45, Farbrad vollständig, Decoder-Farbverstärkung steigt von 15 auf 54. Bildrate: 150 Frames in 5,15 s = 29,13 fps inklusive Stream-Start (nominal 30000/1001). Der Wert vom alten Pi ist nur ein Richtwert, siehe ADR-003.
+- Ursachenvermutung (nicht bewiesen): Der Konverter liefert in der PAL-Stellung kein oder ein für den Decoder unlesbares Farbsignal. Ursache wurde nicht weiter untersucht.
+- Konsequenzen/Trade-offs: Schalter am Konverter muss auf NTSC bleiben. Das Bild ist stark von Interlacing (Kammartefakte) und Farbsäumen geprägt, das berücksichtigt die Vorverarbeitung. Signalerkennung (M5) muss das NTSC-Format kennen, das „NO SIGNAL“-Bild des Konverters ist noch unter NTSC zu prüfen.
+- Verworfen/revidiert: ersetzt die PAL-Annahme in ADR-002 (Eingang 0 und UYVY bleiben).

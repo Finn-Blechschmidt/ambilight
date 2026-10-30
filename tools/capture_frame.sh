@@ -6,8 +6,8 @@ set -euo pipefail
 HOST="${AMBILIGHT_HOST:-ambilight}"
 DEV="${AMBILIGHT_VIDEO_DEV:-/dev/video0}"
 INPUT="${AMBILIGHT_INPUT:-0}"
-STD="${AMBILIGHT_STD:-pal}"
-W="${AMBILIGHT_W:-720}"; H="${AMBILIGHT_H:-576}"
+STD="${AMBILIGHT_STD:-ntsc-m}"
+W="${AMBILIGHT_W:-720}"; H="${AMBILIGHT_H:-480}"
 OUT="${1:-captures/frame.png}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
