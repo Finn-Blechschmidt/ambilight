@@ -14,7 +14,7 @@ Usage:
   led_test.py off
   led_test.py color [--index 0] [--brightness 10]    # red, green, blue one after another
   led_test.py walk  [--start 0] [--stop 20]          # one LED moves, prints the index
-  led_test.py mark  --index 17                        # one white LED
+  led_test.py mark  --index 17 [--count 5]            # white LED(s), stays on until Ctrl-C
 """
 import argparse, signal, sys, time
 
@@ -55,6 +55,7 @@ def main():
     p.add_argument("--index", type=int, default=0)
     p.add_argument("--start", type=int, default=0)
     p.add_argument("--stop", type=int, default=20)
+    p.add_argument("--count", type=int, default=1)
     p.add_argument("--brightness", type=int, default=10)
     p.add_argument("--delay", type=float, default=1.0)
     a = p.parse_args()
@@ -76,8 +77,9 @@ def main():
                 set_leds(strip, {i: (255, 255, 255)})
                 time.sleep(a.delay)
         elif a.mode == "mark":
-            set_leds(strip, {a.index: (255, 255, 255)})
-            print(f"LED {a.index} on, Ctrl-C to stop", flush=True)
+            idxs = range(a.index, min(a.index + a.count, LED_COUNT))
+            set_leds(strip, {i: (255, 255, 255) for i in idxs})
+            print(f"LEDs {idxs.start}..{idxs.stop - 1} on, Ctrl-C to stop", flush=True)
             while True:
                 time.sleep(1)
     finally:

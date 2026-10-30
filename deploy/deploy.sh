@@ -10,7 +10,7 @@ REMOTE_DIR="${AMBILIGHT_REMOTE_DIR:-ambilight}"   # relative to the remote home
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 RSYNC_OPTS=(-az --delete --human-readable --stats
-  --exclude '.git/' --exclude '.DS_Store' --exclude '__pycache__/'
+  --exclude '.git/' --exclude '.venv/' --exclude '.DS_Store' --exclude '__pycache__/'
   --exclude '*.local.*' --exclude 'captures/' --exclude 'CLAUDE.md')
 [[ "${1:-}" == "--dry-run" ]] && RSYNC_OPTS+=(--dry-run)
 
