@@ -18,3 +18,8 @@ Bisher keine. Vorhanden: `rsync`, `python3`, `v4l2-ctl`. Nicht vorhanden: `git`,
 - Versorgung: Der Pi hängt am LED-Netzteil S-50-5 (5 V / 10 A), nicht an einem eigenen Pi-Netzteil. Das Netzteil selbst ist ausreichend dimensioniert, die Unterspannung entsteht also eher auf dem Weg zum Pi (Kabel, Klemmen, Einstellung der Ausgangsspannung) als durch fehlende Leistung.
 - `get_throttled` = `0xf0007`: Unterspannung und Frequenzbegrenzung aktiv, 1 Minute nach dem Boot. Kerntemperatur 82 °C kurz nach dem Boot (ohne nennenswerte Last), das ist auffällig hoch.
 - Offen: Spannung am Pi (Testpunkte TP1/TP2 der 3B+) mit Multimeter messen, Ausgangsspannung des Netzteils am Poti prüfen, Kabelquerschnitt und -länge klären.
+
+### Test mit externem Netzteil (2026-10-30)
+- Pi an einem externen Netzteil, frei in der Luft. Nach 2 Minuten Uptime weiterhin `get_throttled` = `0xf0007`, `dmesg`: `Undervoltage detected!` bei 18 s, ARM-Takt 600 MHz (begrenzt). Die Kerntemperatur zeigt unverändert 82,2 °C wie in der Messung davor. Ein identischer Wert nach zwei Neustarts ist verdächtig, der Sensor ist damit nicht als verlässlich zu betrachten.
+- Die Unterspannung liegt also nicht (nur) am LED-Netzteil. Ursache offen: externes Netzteil/Kabel, USB-Last oder die Messung selbst.
+- Foto-Beobachtung: Der Pi lag direkt auf dem Gehäuse des offenen S-50-5, dessen Netzanschlussklemmen unabgedeckt waren (Sicherheitsrisiko). Ein gelbes Datenkabel hing frei in der Nähe der Klemmen. Der Aufbau wird vor M2 sauber getrennt.
