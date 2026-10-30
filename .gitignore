@@ -1,0 +1,16 @@
+# Python / build
+__pycache__/
+*.pyc
+.venv/
+build/
+target/
+
+# Local config and captures (may contain site-specific data)
+config/*.local.*
+captures/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
