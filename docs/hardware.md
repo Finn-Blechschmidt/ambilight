@@ -80,3 +80,10 @@ Verkabelung laut Finn: gelbes Kabel Pin 12 (GPIO 18) auf grüne Ader am Streifen
 - Die vier Varianten `led_test.py mark --stream` (800/400 kHz, 24/32 Bit) liefen am Streifen ohne sichtbare Reaktion.
 - `pinctrl`-Test (ohne Root): GPIO 18 als Ausgang auf High gesetzt liest `hi`, auf Low gesetzt `lo`. Der Pin ist also nicht hart gegen Masse oder 5 V kurzgeschlossen. Die Pull-up/Pull-down-Messung ist unbrauchbar (auch unbelegte Pins 24 und 25 lesen `lo`, `pinctrl` setzt die Pulls auf dem BCM2837 offenbar nicht).
 - Offen: Amplitude am Streifenende, Durchgang der Datenader, Zustand des ersten LED-Chips.
+
+### GPIO-Pegeltest nach Umstecken (2026-10-30)
+Finn hat gelbes (Daten) und schwarzes (Masse) Kabel zwischen Pin 6 und Pin 12 getauscht (keine LED leuchtete). Danach `pinctrl`-Test, je Pin als Ausgang High/Low gesetzt und zurückgelesen:
+- GPIO 12: folgt korrekt (hi/lo), Pin ist in Ordnung.
+- GPIO 18: liest immer `hi`, auch bei Low und als freier Eingang. Vorher am selben Tag folgte er korrekt. Der Pin wird extern auf High gehalten oder ist beschädigt.
+- GPIO 21 (Pin 40, unbelegt): liest immer `lo`, auch bei High. Verdacht: Ausgang defekt oder gegen Masse gebrückt.
+- Konsequenz: Zuerst Header ohne Kabel messen, um äußere Verdrahtung von Pin-Schaden zu trennen. `led_test.py` hat jetzt `--pin` (12, 13, 18, 19, 21).

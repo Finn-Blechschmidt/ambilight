@@ -26,10 +26,11 @@ MAX_BRIGHTNESS = 32
 MAX_LIT = 8
 
 
-def make_strip(brightness, freq=800000, rgbw=False):
+def make_strip(brightness, freq=800000, rgbw=False, pin=LED_PIN):
     brightness = max(0, min(int(brightness), MAX_BRIGHTNESS))
     # args: count, pin, freq, dma channel, invert, brightness, pwm channel, strip type
-    strip = PixelStrip(LED_COUNT, LED_PIN, freq, 10, False, brightness, 0,
+    channel = 1 if pin in (13, 19) else 0   # GPIO 13/19 are PWM channel 1
+    strip = PixelStrip(LED_COUNT, pin, freq, 10, False, brightness, channel,
                        SK6812_STRIP_RGBW if rgbw else WS2811_STRIP_RGB)
     strip.begin()
     return strip
@@ -58,13 +59,15 @@ def main():
     p.add_argument("--stop", type=int, default=20)
     p.add_argument("--count", type=int, default=1)
     p.add_argument("--freq", type=int, default=800000, choices=[400000, 800000], help="data rate in Hz")
+    p.add_argument("--pin", type=int, default=LED_PIN, choices=[12, 13, 18, 19, 21],
+                   help="GPIO (BCM). 12/18 PWM0, 13/19 PWM1, 21 PCM")
     p.add_argument("--rgbw", action="store_true", help="32-bit LEDs (SK6812 RGBW)")
     p.add_argument("--stream", action="store_true", help="mark: resend the frame every 10 ms (for signal measurements)")
     p.add_argument("--brightness", type=int, default=10)
     p.add_argument("--delay", type=float, default=1.0)
     a = p.parse_args()
 
-    strip = make_strip(a.brightness, a.freq, a.rgbw)
+    strip = make_strip(a.brightness, a.freq, a.rgbw, a.pin)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: sys.exit(0))
     try:
