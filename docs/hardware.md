@@ -66,3 +66,11 @@ Folgerungen:
 - Software: `tools/led_test.py color` (LED 0, Helligkeit 10) und `mark --count 5` (Helligkeit 32) laufen ohne Fehler. Nach dem Lauf steht GPIO 18 laut `pinctrl get 18` auf `a5` = `PWM0`. Die Ausgabe am Pi ist also konfiguriert. Ob am Pin tatsächlich ein Signal anliegt und ankommt, ist damit nicht belegt.
 - Offen (nur physisch prüfbar): Welcher Header-Pin trägt das gelbe Kabel (Foto nicht eindeutig), Anschlussbelegung des 3-adrigen JST-Steckers am Streifen (rot/grün/weiß, vermutlich rot +5 V, grün Daten, weiß GND, ungeprüft), Spannung am Streifen, gemeinsame Masse.
 - Beobachtungen auf den Fotos: S-50-5 läuft (grüne LED an), Netzklemmen sind mit einer durchsichtigen Kappe abgedeckt, ein graues Kabel liegt quer über der Abdeckung. Die Pfeile auf dem Streifen zeigen vom Anschlussende weg (Hinweis, dass der Stecker am Dateneingang sitzt, nicht bestätigt).
+
+### Signalmessung am GPIO 18 (2026-10-30)
+Verkabelung laut Finn: gelbes Kabel Pin 12 (GPIO 18) auf grüne Ader am Streifen (Daten), schwarzes Kabel Pin 6 (GND) auf weiße Ader (Masse). Das Netzteil und die Streifen-LEDs funktionierten früher mit anderer Ansteuerung.
+- Methode: `led_test.py mark --stream` sendet alle 10 ms ein Bild. Dazu liest `tools/gpio_sample.py` (Python) und `tools/gpio_pulse.c` (C, 111 ns pro Lesevorgang) das GPIO-Level-Register ohne Root.
+- Ruhezustand: 0 Pegelwechsel, 0,0 % high.
+- Mit Stream: 15 000 bis 27 000 Pegelwechsel pro Sekunde, 8 bis 12 % high.
+- Pulsbreiten (4 Mio. Lesevorgänge, 111 265 High-Pulse): 300 bis 599 ns, Schwerpunkt 400 bis 499 ns. Flanke zu Flanke: 1100 bis 1399 ns, Schwerpunkt 1200 bis 1299 ns. Das entspricht dem WS2812B-Timing (800 kHz, Null-Bit ca. 0,4 µs high, Periode 1,25 µs).
+- Ergebnis: Der Pi erzeugt das richtige Signal am Pin. Der Fehler liegt dahinter: Pegel (3,3 V statt der geforderten mind. 3,5 V bei 5 V Versorgung), Kontakt, gemeinsame Masse oder der Dateneingang des Streifens. Die Amplitude kann mit dieser Messung nicht beurteilt werden.
