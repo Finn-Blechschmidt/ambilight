@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 
@@ -65,6 +65,22 @@ class Leds:
 class Color:
     gamma: float = 2.2
     brightness: float = 1.0   # 0..1
+    # Per-channel gain (R, G, B) applied after gamma to even out the strip's white. 1.0 = untouched.
+    # The defaults are uncalibrated; the real values come from looking at the strip (M4/M6).
+    white_balance: tuple = (1.0, 1.0, 1.0)
+
+
+@dataclass(frozen=True)
+class Letterbox:
+    """Detection of black bars (letterbox / pillarbox) so that the LEDs follow the real picture."""
+    enabled: bool = True
+    dark_threshold: float = 30.0    # a row/column with mean luma below this can be a bar (NTSC black measured at 16-19)
+    uniform_std: float = 8.0        # ... and its luma must be nearly constant (a dark picture is not a bar)
+    content_min: float = 40.0       # something brighter than this must exist inside, else it is just a dark frame
+    min_bar_px: int = 12            # smaller bars are ignored
+    max_bar_fraction: float = 0.35  # a bar never takes more than this share of the height / width per side
+    stable_frames: int = 15         # the same measurement this many frames in a row before the crop changes
+    tolerance_px: int = 4           # measurements within this many pixels count as "the same"
 
 
 @dataclass(frozen=True)
@@ -114,6 +130,7 @@ class Config:
     signal: Signal = field(default_factory=Signal)
     capture: Capture = field(default_factory=Capture)
     metrics: Metrics = field(default_factory=Metrics)
+    letterbox: Letterbox = field(default_factory=Letterbox)
 
 
 def _section(cls, data: dict, name: str):
@@ -125,7 +142,7 @@ def _section(cls, data: dict, name: str):
 
 
 def from_dict(data: dict) -> Config:
-    unknown = set(data) - {"layout", "regions", "leds", "color", "smoothing", "signal", "capture", "metrics"}
+    unknown = set(data) - {"layout", "regions", "leds", "color", "smoothing", "signal", "capture", "metrics", "letterbox"}
     if unknown:
         raise ConfigError(f"unknown sections: {sorted(unknown)}")
     cfg = Config(
@@ -137,6 +154,7 @@ def from_dict(data: dict) -> Config:
         signal=_section(Signal, data.get("signal", {}), "signal"),
         capture=_section(Capture, data.get("capture", {}), "capture"),
         metrics=_section(Metrics, data.get("metrics", {}), "metrics"),
+        letterbox=_section(Letterbox, data.get("letterbox", {}), "letterbox"),
     )
     validate(cfg)
     return cfg
@@ -145,6 +163,11 @@ def from_dict(data: dict) -> Config:
 def load(path: str | Path) -> Config:
     with open(path, "rb") as f:
         return from_dict(tomllib.load(f))
+
+
+def with_crop(regions: Regions, left: int, right: int, top: int, bottom: int) -> Regions:
+    """Copy of `regions` with the given crop; used when letterbox bars are detected."""
+    return replace(regions, crop_left=left, crop_right=right, crop_top=top, crop_bottom=bottom)
 
 
 def validate(cfg: Config) -> None:
@@ -186,3 +209,9 @@ def validate(cfg: Config) -> None:
         raise ConfigError("capture: need buffers >= 2 and positive restart_delay_s / stall_timeout_s")
     if cfg.metrics.interval_s <= 0:
         raise ConfigError("metrics.interval_s must be positive")
+    wb = cfg.color.white_balance
+    if len(wb) != 3 or not all(0.1 <= g <= 2.0 for g in wb):
+        raise ConfigError("color.white_balance needs three gains between 0.1 and 2.0")
+    lb = cfg.letterbox
+    if not 0.0 < lb.max_bar_fraction < 0.5 or lb.min_bar_px < 1 or lb.stable_frames < 1 or lb.tolerance_px < 0:
+        raise ConfigError("letterbox: need 0 < max_bar_fraction < 0.5, min_bar_px >= 1, stable_frames >= 1")

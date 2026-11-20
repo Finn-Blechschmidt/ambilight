@@ -73,3 +73,20 @@ def test_example_config_has_capture_and_metrics_sections():
 def test_capture_needs_at_least_two_buffers():
     with pytest.raises(config.ConfigError):
         config.from_dict({"capture": {"buffers": 1}})
+
+
+def test_example_config_has_letterbox_and_white_balance():
+    cfg = config.load(EXAMPLE)
+    assert cfg.letterbox.enabled and cfg.letterbox.min_bar_px >= 1
+    assert tuple(cfg.color.white_balance) == (1.0, 1.0, 1.0)
+
+
+def test_white_balance_needs_three_sane_gains():
+    for bad in ([1.0, 1.0], [1.0, 1.0, 5.0], [0.0, 1.0, 1.0]):
+        with pytest.raises(config.ConfigError):
+            config.from_dict({"color": {"white_balance": bad}})
+
+
+def test_letterbox_limits_are_checked():
+    with pytest.raises(config.ConfigError):
+        config.from_dict({"letterbox": {"max_bar_fraction": 0.6}})

@@ -32,6 +32,7 @@ idle_ma_per_led = 1
 [color]
 gamma = 2.2
 brightness = 1.0
+white_balance = [1.0, 1.0, 1.0]   # R, G, B gain; uncalibrated, tune on the real strip
 
 [smoothing]
 tau_slow_s = 0.30     # small changes (noise, flicker) are smoothed with this time constant
@@ -58,3 +59,13 @@ stall_timeout_s = 3.0    # no frame for this long: restart the capture process
 [metrics]
 interval_s = 10          # how often a summary is logged
 json_path = ""           # if set, the latest summary is also written there as JSON
+
+[letterbox]
+enabled = true
+dark_threshold = 30     # rows/columns darker than this (mean luma; NTSC black measured at 16-19, PAL 25-34) can be a bar
+uniform_std = 8         # ... and nearly constant, so a dark picture is not mistaken for a bar
+content_min = 40        # the picture inside must be brighter than this, else it is just a dark frame
+min_bar_px = 12         # smaller bars are ignored
+max_bar_fraction = 0.35 # a bar never takes more than this share of the frame per side
+stable_frames = 15      # same measurement this many frames in a row before the crop changes (about 0.5 s)
+tolerance_px = 4

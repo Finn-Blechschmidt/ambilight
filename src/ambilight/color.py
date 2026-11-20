@@ -7,9 +7,10 @@ from .config import Color, Leds
 
 
 def apply_gamma_brightness(rgb: np.ndarray, cfg: Color) -> np.ndarray:
-    """Gamma curve on 0..255 floats, then global brightness."""
+    """Gamma curve on 0..255 floats, then white balance and global brightness."""
     norm = np.clip(rgb, 0.0, 255.0) / 255.0
-    return (norm ** cfg.gamma) * 255.0 * cfg.brightness
+    gain = np.asarray(cfg.white_balance, dtype=np.float32) * cfg.brightness
+    return np.minimum((norm ** cfg.gamma) * 255.0 * gain, 255.0)
 
 
 def estimated_current_ma(rgb: np.ndarray, cfg: Leds) -> float:

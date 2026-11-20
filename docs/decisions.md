@@ -16,6 +16,7 @@ documented on purpose.
 | [008](#adr-008-adaptive-smoothing-with-hysteresis-and-scene-cut-bypass) | Adaptive smoothing with hysteresis and scene-cut bypass | Accepted, parameters unverified on real LEDs |
 | [009](#adr-009-signal-monitoring-by-pattern-structure-and-exact-frame-repeats) | Signal monitoring by pattern structure and exact frame repeats | Accepted, PAL pattern only |
 | [010](#adr-010-v4l2-ctl-subprocess-with-a-reader-thread-newest-frame-wins-and-floor-rounding-for-the-current-limit) | `v4l2-ctl` subprocess with a reader thread; newest frame wins; floor rounding for the current limit | Accepted, capture unverified on hardware |
+| [011](#adr-011-letterbox-detection-by-uniform-dark-edges-with-a-stability-window-and-per-channel-white-balance) | Letterbox detection by uniform dark edges with a stability window; per-channel white balance | Accepted, unverified on real letterboxed material |
 
 ---
 
@@ -280,3 +281,37 @@ documented on purpose.
   unplugged, the real `rpi_ws281x` output (no LED has lit, see hardware.md), the systemd unit.
 - Consequences / trade-offs: a pipe copy per frame; the Python reader thread competes for the GIL with the pipeline.
   Both are cheap at this data rate, but the numbers on the Pi decide.
+
+## ADR-011: Letterbox detection by uniform dark edges with a stability window, and per-channel white balance
+
+- Date: 2026-11-20
+- Context: Films with black bars (letterbox) or pillarboxed 4:3 material would make the edge LEDs look into the black
+  bar and stay dark. The LED regions have to follow the real picture. The strip's white also needs a per-channel
+  correction, because LED colours differ in efficiency.
+- Options considered for the bars:
+  1. Fixed crop from the config. Pro: trivial. Con: wrong for every material that is not the configured shape.
+  2. Detect bars per frame and apply the crop immediately. Pro: reacts at once. Con: dark scenes and fades make the
+     regions jump around; a black frame would "crop everything".
+  3. Detect bars as rows/columns that are dark and nearly constant, then change the crop only after the same
+     measurement was seen for many frames. Pro: stable, ignores dark scenes. Con: a delay of about half a second
+     before a changed shape is followed.
+- Decision: option 3 (`src/ambilight/letterbox.py`). A row or column counts as bar if its mean luma is below
+  `dark_threshold` (30) and its standard deviation below `uniform_std` (8). Bars below `min_bar_px` (12) beyond the base
+  crop are ignored, a bar larger than `max_bar_fraction` (35 %) of the frame is rejected as an all-dark frame, and the
+  picture inside must contain something brighter than `content_min` (40). The crop changes after `stable_frames` (15, about
+  0.5 s) identical measurements, within 4 pixels. The pipeline then recomputes the LED rectangles, and ignores a crop
+  that would leave no room for the side regions (logged).
+- Black level (measured on the real captures of 2026-10-30): in NTSC the black border rows are at luma 16 to 19; in PAL
+  mode black was raised to 25 to 34. The default threshold of 30 has headroom above NTSC black and stays below any picture
+  content that matters. PAL is not used (ADR-004).
+- Measurement: unit tests with synthetic frames. Letterbox (60 px top and bottom) measured at 64 to 70, pillarbox
+  (100 px) at 104 to 110, uneven bars per side, small and huge bars rejected, a dark scene and an all-black frame not cropped,
+  flickering bars never change the crop, release after 15 frames. In the pipeline, edge LEDs read above 100 with detection and
+  below 5 without it on a red picture with 70 px bars. On the real NTSC capture of the colour test, no bars are found (correct).
+  Cost on a Mac: 0.32 ms per frame (median). Not valid for the Pi.
+- White balance: three gains in `[color] white_balance`, applied after gamma and before the brightness limit, clipped at 255.
+  The default is 1.0 for every channel; the real values must come from looking at the strip (not possible yet).
+- Not verified: real letterboxed material through the analogue chain (sync pulses, noise and a lifted black level could
+  shift the thresholds), the white balance values.
+- Consequences / trade-offs: one more per-frame cost (about 0.3 ms on a Mac); the shape change is followed with a delay;
+  thresholds are guesses grounded in one set of captures.

@@ -56,3 +56,10 @@ def test_floor_keeps_the_limit_where_rounding_does_not():
     floored = color.to_bytes(rgb, floor=True).astype(np.float32)
     assert color.estimated_current_ma(floored, leds) <= 2000.0
     assert color.to_bytes(np.array([[1.9, 2.5, 254.99]]), floor=True).tolist() == [[1, 2, 254]]
+
+
+def test_white_balance_scales_channels_independently_and_never_exceeds_255():
+    cfg = config.Color(gamma=1.0, white_balance=(0.5, 1.0, 1.5))
+    out = color.apply_gamma_brightness(np.array([[200.0, 200.0, 200.0], [255.0, 255.0, 255.0]]), cfg)
+    assert np.allclose(out[0], [100.0, 200.0, 255.0])      # blue 300 is clipped
+    assert np.allclose(out[1], [127.5, 255.0, 255.0])

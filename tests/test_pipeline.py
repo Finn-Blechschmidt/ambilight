@@ -128,3 +128,53 @@ def test_metrics_snapshot_has_fps_and_stage_times():
     assert 29 < snap["fps"] < 31
     assert {"extract_ms", "total_ms"} <= set(snap["stages"])
     assert snap["counters"]["frames"] == 40
+
+
+# --- letterbox in the pipeline -----------------------------------------------------------------------
+def _top_led_brightness(out):
+    cfg = config.Config()
+    rects = layout.led_rects(cfg)
+    top = [i for i, r in enumerate(rects) if r[1] == cfg.regions.crop_top]      # top band LEDs
+    last = out.frames[-2]
+    return float(np.mean([last[i].max() for i in top]))
+
+
+def _barred_frames(n):
+    """Red picture with black bars; the level varies a little per frame like analogue noise, so it is not 'frozen'."""
+    from helpers import with_bars
+    return [Frame(with_bars(uyvy_frame(W, H, (200 + i % 3, 60, 60)), W, H, top=70, bottom=70), (i + 1) * DT, i + 1)
+            for i in range(n)]
+
+
+def test_letterbox_makes_the_edge_leds_follow_the_picture_not_the_black_bar():
+    _, pipe_on, out_on, _ = run(_barred_frames(80))
+    off = config.Config(letterbox=config.Letterbox(enabled=False))
+    _, _, out_off, _ = run(_barred_frames(80), off)
+    assert pipe_on.metrics.counters["letterbox_changes"] >= 1
+    assert _top_led_brightness(out_off) < 5                  # without detection the top LEDs look into the black bar
+    assert _top_led_brightness(out_on) > 100                 # with it they see the picture
+
+
+def test_a_crop_that_does_not_fit_the_layout_is_ignored():
+    from helpers import with_bars
+    reg = config.Regions(depth_y=130)                        # leaves just enough height for the side regions
+    cfg = config.Config(regions=reg)
+    config.validate(cfg)
+    before = layout.led_rects(cfg)
+    items = [Frame(with_bars(uyvy_frame(W, H, (200 + i % 3, 60, 60)), W, H, top=110, bottom=110), (i + 1) * DT, i + 1)
+             for i in range(40)]
+    _, pipe, out, _ = run(items, cfg)
+    assert pipe.letterbox.crop[2] >= 110 and pipe.letterbox.crop[3] >= 110   # the detector did adopt the bars ...
+    assert pipe.rects == before                                              # ... but the layout refused the crop
+    assert pipe.metrics.counters["letterbox_changes"] == 0
+    assert out.closed
+
+
+def test_state_changes_are_logged_and_counted(caplog):
+    import logging
+    good, pat = uyvy_frame(W, H, RED, BLUE), bars_frame(W, H)
+    with caplog.at_level(logging.INFO, logger="ambilight.pipeline"):
+        _, pipe, _, _ = run(frames(good, 20) + frames(pat, 30, start=20) + frames(good, 20, start=50))
+    states = [r.getMessage() for r in caplog.records if r.getMessage().startswith("signal state")]
+    assert states == ["signal state: ok", "signal state: no_signal", "signal state: ok"]
+    assert pipe.metrics.counters["state_no_signal"] == 1

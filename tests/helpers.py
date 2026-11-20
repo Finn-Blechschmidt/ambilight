@@ -39,3 +39,18 @@ def bars_frame(width, height):
     view[..., 0], view[..., 2] = 128, 128
     view[..., 1], view[..., 3] = luma[:, 0::2], luma[:, 1::2]
     return view.reshape(-1).tobytes()
+
+
+def with_bars(frame, width, height, top=0, bottom=0, left=0, right=0):
+    """Paint black bars (limited-range black, neutral chroma) onto a UYVY frame (bytes). Returns bytes."""
+    view = np.frombuffer(frame, dtype=np.uint8).copy().reshape(height, width // 2, 4)
+    black = (128, 16, 128, 16)
+    if top:
+        view[:top] = black
+    if bottom:
+        view[height - bottom:] = black
+    if left:
+        view[:, :left // 2] = black
+    if right:
+        view[:, (width - right) // 2:] = black
+    return view.reshape(-1).tobytes()

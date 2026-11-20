@@ -17,7 +17,7 @@ libraries.
 | M1 | Capture verified (colour frame from the right input) | Done: colour NTSC frame captured and checked against the TV |
 | M2 | LEDs verified (pin, type, colour order, count, layout, power budget) | **In progress, blocked.** Power budget and layout documented, the Pi produces a correct WS2812B signal, but no LED has lit yet |
 | M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and unit-tested on the Mac: configuration, layout and regions, colour extraction, colour correction, current limit, smoothing, the pipeline loop with metrics, a `v4l2-ctl` capture source with restart, a file replay source and the WS2812B output backend. **Not verified on hardware:** capture from the real grabber, the real LED output, any timing on the Pi |
-| M4 | Picture quality (letterbox detection, smoothing, colour correction) | Partly done on the Mac: smoothing and colour correction implemented and unit-tested. Letterbox detection not started. Parameters not tuned on real LEDs |
+| M4 | Picture quality (letterbox detection, smoothing, colour correction) | Implemented and unit-tested on the Mac: smoothing, gamma, white balance (placeholder gains), letterbox detection. Not tuned on real LEDs or real letterboxed material |
 | M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Partly done on the Mac: signal monitoring (test pattern, frozen capture, lost frames, fades) implemented and unit-tested against real PAL fixtures. Capture restart/stall handling, shutdown with all LEDs off and a systemd unit are written and tested with fakes; the unit and the real reconnect have not been run on the Pi |
 | M6 | Measurement and documentation (benchmarks, complete docs) | Not started; documentation is in progress |
 
@@ -72,10 +72,10 @@ Only the capture path exists today, as manual commands and helper tools.
 
 ```
 ambilight/
-├── src/ambilight/ # pipeline: config, layout, extract, color, smoothing, monitor, capture, output, metrics, pipeline
+├── src/ambilight/ # pipeline: config, layout, extract, color, smoothing, monitor, letterbox, capture, output, metrics, pipeline
 ├── config/       # example configuration
 ├── tools/        # helper scripts: frame capture, LED test patterns, GPIO measurements
-├── tests/        # unit tests (74) for config, layout, extraction, colour, smoothing, signal monitoring, pipeline, capture and outputs
+├── tests/        # unit tests (93) for config, layout, extraction, colour, smoothing, signal monitoring, pipeline, capture and outputs
 ├── deploy/       # deploy and Pi setup scripts
 └── docs/         # architecture, decision log (ADR), benchmarks, hardware, ideas
 ```
@@ -140,6 +140,18 @@ Run the whole pipeline on any machine from a recorded file, without LEDs (record
 
 On the Pi, the service is installed with `~/ambilight/deploy/install_service.sh` (needs `sudo`; written, not yet run).
 
+Preview what the LEDs would show for any picture, without LEDs or a Pi (needs Pillow, which `requirements-dev.txt` installs):
+
+```bash
+.venv/bin/python tools/preview.py picture.png preview.png --letterbox
+```
+
+Benchmark the whole pipeline (run it on the Pi for numbers that count; they only count at `get_throttled` = `0x0`):
+
+```bash
+.venv/bin/python tools/bench_pipeline.py --synthetic 600
+```
+
 ## Tools
 
 Capture one frame (runs on the Mac, uses SSH, writes a PNG and prints luma and chroma statistics). A colour picture
@@ -173,7 +185,8 @@ in place. The production pipeline will have one; the test tool simply refuses to
 
 ## Key numbers
 
-There are no valid performance numbers yet, and none are claimed. What has been measured, and how far it can be
+There are no valid performance numbers yet, and none are claimed. On a Mac the whole pipeline needs about 1.6 ms and 1.65 ms
+of CPU per frame (about 5 % of one core at 29.97 fps); that says nothing about the Pi. What has been measured, and how far it can be
 trusted, is in [docs/benchmarks.md](docs/benchmarks.md). The target figures (frame rate, end-to-end latency, CPU
 load) will be added here once they are measured on a healthy Pi.
 
@@ -185,6 +198,8 @@ load) will be added here once they are measured on a healthy Pi.
 | [docs/decisions.md](docs/decisions.md) | decision log (ADR), including failed and revised attempts |
 | [docs/hardware.md](docs/hardware.md) | components, wiring, power calculation, investigation logs, system changes |
 | [docs/benchmarks.md](docs/benchmarks.md) | measurement method and results |
+| [docs/verification.md](docs/verification.md) | what is verified on hardware, what is only unit-tested, what is open |
+| [docs/pi-session.md](docs/pi-session.md) | ordered checklist for the next session with a healthy Pi |
 | [docs/ideas.md](docs/ideas.md) | extensions that are not planned |
 
 ## How this project was made

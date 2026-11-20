@@ -12,9 +12,12 @@ from typing import Callable
 
 import numpy as np
 
-from . import color, extract, layout
+from dataclasses import replace
+
+from . import color, config as config_mod, extract, layout
 from .capture import Frame, FrameSource
 from .config import Config
+from .letterbox import LetterboxDetector
 from .metrics import Metrics
 from .monitor import SignalMonitor, State
 from .output import LedOutput
@@ -32,11 +35,13 @@ class Pipeline:
         self.output = output
         self.metrics = metrics or Metrics()
         self.rects = layout.led_rects(cfg)
+        self.letterbox = LetterboxDetector(cfg.letterbox, cfg.regions) if cfg.letterbox.enabled else None
         self.smoother = Smoother(cfg.smoothing)
         self.monitor = SignalMonitor(cfg.signal, cfg.regions)
         self._last_t: float | None = None
         self._smoothed: np.ndarray | None = None
         self._last_log = time.monotonic()
+        self._last_state: State | None = None
 
     # -- one frame -------------------------------------------------------------------------------
     def handle_frame(self, frame: Frame) -> None:
@@ -48,6 +53,9 @@ class Pipeline:
             log.error("dropping frame: %s", exc)
             m.inc("bad_frames")
             return
+        if self.letterbox is not None:
+            self._update_letterbox(view)
+        tl = time.perf_counter()
         rgb = extract.region_colors(view, reg.frame_width, reg.frame_height, self.rects)
         t1 = time.perf_counter()
         rgb = color.apply_gamma_brightness(rgb, self.cfg.color)
@@ -56,6 +64,7 @@ class Pipeline:
         smoothed = self.smoother.step(rgb, dt)
         t2 = time.perf_counter()
         state, gain = self.monitor.update(view, frame.t)
+        self._note_state(state)
         if state is not State.OK:
             self.smoother.reset()         # after the signal returns, start from the new picture, not the pattern
         t3 = time.perf_counter()
@@ -63,7 +72,8 @@ class Pipeline:
         self._emit(smoothed, gain)
         t4 = time.perf_counter()
 
-        m.observe("extract_ms", (t1 - t0) * 1000)
+        m.observe("letterbox_ms", (tl - t0) * 1000)
+        m.observe("extract_ms", (t1 - tl) * 1000)
         m.observe("correct_smooth_ms", (t2 - t1) * 1000)
         m.observe("monitor_ms", (t3 - t2) * 1000)
         m.observe("limit_output_ms", (t4 - t3) * 1000)
@@ -71,11 +81,33 @@ class Pipeline:
         m.frame_done(frame.t)
         m.inc("frames")
 
+    def _update_letterbox(self, view: np.ndarray) -> None:
+        crop, changed = self.letterbox.update(view)
+        if not changed:
+            return
+        regions = config_mod.with_crop(self.cfg.regions, *crop)
+        trial = replace(self.cfg, regions=regions)
+        try:
+            config_mod.validate(trial)
+            self.rects = layout.led_rects(trial)
+        except config_mod.ConfigError as exc:
+            log.warning("letterbox crop %s does not fit the layout, ignored: %s", crop, exc)
+            return
+        self.metrics.inc("letterbox_changes")
+        log.info("letterbox crop (left, right, top, bottom) = %s", crop)
+
     def handle_idle(self) -> None:
         """No new frame: keep fading (signal lost) and keep the LEDs updated."""
         state, gain = self.monitor.tick(self.source.now())
+        self._note_state(state)
         if self._smoothed is not None:
             self._emit(self._smoothed, gain)
+
+    def _note_state(self, state: State) -> None:
+        if state is not self._last_state:
+            log.info("signal state: %s", state.value)
+            self.metrics.inc(f"state_{state.value}")
+            self._last_state = state
 
     def _emit(self, smoothed: np.ndarray, gain: float) -> None:
         limited = color.limit_current(smoothed * gain, self.cfg.leds)
@@ -96,6 +128,7 @@ class Pipeline:
         finally:
             self.output.close()
             self.source.close()
+            log.info("final metrics: %s", self.metrics.snapshot())
 
     def _maybe_report(self) -> None:
         now = time.monotonic()
