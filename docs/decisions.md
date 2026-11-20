@@ -15,6 +15,7 @@ documented on purpose.
 | [007](#adr-007-python-with-numpy-for-the-pipeline-provisional-with-an-exit-criterion) | Python with NumPy for the pipeline | Provisional, exit criterion defined |
 | [008](#adr-008-adaptive-smoothing-with-hysteresis-and-scene-cut-bypass) | Adaptive smoothing with hysteresis and scene-cut bypass | Accepted, parameters unverified on real LEDs |
 | [009](#adr-009-signal-monitoring-by-pattern-structure-and-exact-frame-repeats) | Signal monitoring by pattern structure and exact frame repeats | Accepted, PAL pattern only |
+| [010](#adr-010-v4l2-ctl-subprocess-with-a-reader-thread-newest-frame-wins-and-floor-rounding-for-the-current-limit) | `v4l2-ctl` subprocess with a reader thread; newest frame wins; floor rounding for the current limit | Accepted, capture unverified on hardware |
 
 ---
 
@@ -247,3 +248,35 @@ documented on purpose.
   ([ADR-004](#adr-004-ntsc-instead-of-pal-on-converter-and-grabber-supersedes-adr-002)) and its NTSC pattern has not
   been captured. Live analogue noise might push the bar flatness over the threshold. Both are to be checked on the
   Pi as soon as it is reachable. The frozen detector is likewise unverified on hardware.
+
+## ADR-010: `v4l2-ctl` subprocess with a reader thread, newest frame wins, and floor rounding for the current limit
+
+- Date: 2026-11-20
+- Context: The pipeline needs a continuous stream of frames from the grabber, must survive a grabber that disappears or
+  stalls, and must never build up latency. The Pi was not reachable, so nothing here could be tried on the real device.
+- Options considered for reading frames:
+  1. OpenCV `VideoCapture`. Pro: one call. Con: a heavy dependency on a Pi 3, hides buffering and error handling,
+     UYVY/format control is indirect.
+  2. Direct V4L2 ioctls with `ctypes` and `mmap`. Pro: no subprocess, full control. Con: a lot of low-level code that
+     cannot be tested without the device.
+  3. `v4l2-ctl --stream-mmap --stream-to=-` as a subprocess, raw frames from its stdout. Pro: the tool is already
+     installed and was used successfully for every capture in M1, trivial to fake in tests, a crash of the capture is
+     isolated from the pipeline process. Con: one pipe copy per frame (about 20 MB/s at 720x480 and 29.97 fps),
+     depends on `v4l2-ctl` behaving as documented when writing to stdout (not tried yet).
+- Decision for reading: option 3 (`capture.V4L2Capture`). A reader thread reads exactly one frame at a time and keeps only
+  the newest. If the consumer is slower, older frames are dropped (counted), so latency cannot accumulate. If the
+  process ends or delivers nothing for `stall_timeout_s`, it is killed and restarted after `restart_delay_s`.
+- Concurrency model: one reader thread (blocking pipe reads release the GIL) and the main thread running the
+  pipeline. Options considered: a single loop (a blocked read would stall fading and signal monitoring), several
+  processes (more copying, more complexity). Revisit after measuring on a healthy Pi (the exit criterion of
+  [ADR-007](#adr-007-python-with-numpy-for-the-pipeline-provisional-with-an-exit-criterion) applies).
+- Measurement (Mac, synthetic noisy frames, 400 frames, not valid for the Pi): total per frame median 1.33 ms, p99
+  1.48 ms. Extraction 1.11 ms, correction and smoothing 0.02 ms, monitor 0.20 ms, limit and output 0.005 ms.
+- Failed attempt (caught by a test): the current limiter scaled in floating point, but the strip receives 8-bit values and
+  `to_bytes` rounded to nearest. A full white frame then came out at an estimated 2006.9 mA against a 2000 mA budget,
+  because rounding up adds up to half a step on each of the 327 channels. A safety limit has to hold after
+  quantisation, so values going to the strip are now rounded down (`to_bytes(..., floor=True)`).
+- Not verified: reading from the real grabber through `v4l2-ctl --stream-to=-`, behaviour when the grabber is
+  unplugged, the real `rpi_ws281x` output (no LED has lit, see hardware.md), the systemd unit.
+- Consequences / trade-offs: a pipe copy per frame; the Python reader thread competes for the GIL with the pipeline.
+  Both are cheap at this data rate, but the numbers on the Pi decide.

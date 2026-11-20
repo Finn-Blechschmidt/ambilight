@@ -39,16 +39,16 @@ flowchart LR
 
 | Stage | Responsibility | Status |
 |---|---|---|
-| Capture | Read frames from the grabber through V4L2, set input/standard/format, reconnect on device loss | Manual only: `v4l2-ctl` commands and `tools/capture_frame.sh` (ADR-002, ADR-004). No in-process capture code |
+| Capture | Read frames from the grabber through V4L2, set input/standard/format, reconnect on device loss | Implemented (`capture.py`, [ADR-010](decisions.md)): `v4l2-ctl` subprocess, reader thread, newest frame wins, restart on exit or stall, plus a file replay source. Tested with a fake `v4l2-ctl`; not run against the real grabber |
 | Pre-processing | Downscale, handle interlacing, crop overscan borders, detect and ignore letterbox bars | Not started. The captured frames show about 8 px black borders and interlacing combing |
 | Regions and colour extraction | One picture region per LED along the edge (from the layout), one representative colour per region (mean, median, weighted, dominant, to be decided and measured) | Layout and mean colour per region implemented (`src/ambilight/layout.py`, `extract.py`), 26 unit tests on the Mac. Median/weighted variants and timing on the Pi are open |
 | Colour correction | Gamma, white balance, brightness limit, **current limit** matched to the supply | Gamma, brightness and current limit implemented (`color.py`) and unit-tested. White balance/calibration open (needs the real strip) |
 | Temporal smoothing | No flicker without feeling sluggish; fast reaction to scene cuts | Implemented (`smoothing.py`, [ADR-008](decisions.md)), unit-tested; parameters not tuned on real LEDs |
-| LED output | Drive the WS2812B strip (pin, colour order and count from the config) | Provisional method decided ([ADR-005](decisions.md)); no LED has lit yet ([hardware.md](hardware.md)) |
+| LED output | Drive the WS2812B strip (pin, colour order and count from the config) | Backends in `output.py`: WS2812B via `rpi_ws281x` ([ADR-005](decisions.md), tested with a fake library only; no LED has lit yet, see [hardware.md](hardware.md)), a recording and a null backend |
 | Signal monitoring | Detect no signal, a frozen picture or the converter's "NO SIGNAL" pattern and fade the LEDs out | Detection implemented (`monitor.py`, [ADR-009](decisions.md)) and unit-tested, including against the real PAL pattern; the NTSC pattern and live noise are unverified |
 | Configuration | One file for the LED layout, pin, gamma, brightness, smoothing, no magic numbers in code | Implemented: validated TOML loading (`config.py`), example in `config/ambilight.example.toml` |
-| Metrics and logging | fps, per-stage latency, CPU load, retrievable without a debugger | Not started |
-| Service | systemd unit, autostart, clean shutdown with all LEDs off | Not started. The test tool already switches the LEDs off on exit |
+| Metrics and logging | fps, per-stage latency, CPU load, retrievable without a debugger | Implemented (`metrics.py`): periodic log line and an optional JSON file with fps, per-stage median/p99 and process CPU. End-to-end latency to the LEDs is not measured |
+| Service | systemd unit, autostart, clean shutdown with all LEDs off | Pipeline switches all LEDs off on exit, Ctrl-C and SIGTERM (tested); `deploy/ambilight.service.in` and `deploy/install_service.sh` are written but have not been run on the Pi |
 
 ## Constraints that shape the design
 

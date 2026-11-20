@@ -16,9 +16,9 @@ libraries.
 | M0 | Repository and one-command deploy | Done |
 | M1 | Capture verified (colour frame from the right input) | Done: colour NTSC frame captured and checked against the TV |
 | M2 | LEDs verified (pin, type, colour order, count, layout, power budget) | **In progress, blocked.** Power budget and layout documented, the Pi produces a correct WS2812B signal, but no LED has lit yet |
-| M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and tested on the Mac: configuration, LED layout and regions, colour extraction, colour correction, current limit, smoothing. Not done: capture loop, LED output stage, anything that needs the Pi |
+| M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and unit-tested on the Mac: configuration, layout and regions, colour extraction, colour correction, current limit, smoothing, the pipeline loop with metrics, a `v4l2-ctl` capture source with restart, a file replay source and the WS2812B output backend. **Not verified on hardware:** capture from the real grabber, the real LED output, any timing on the Pi |
 | M4 | Picture quality (letterbox detection, smoothing, colour correction) | Partly done on the Mac: smoothing and colour correction implemented and unit-tested. Letterbox detection not started. Parameters not tuned on real LEDs |
-| M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Partly done on the Mac: signal monitoring (test pattern, frozen capture, lost frames, fades) implemented and unit-tested against real PAL fixtures. Reconnect, service and shutdown not started; nothing verified on hardware |
+| M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Partly done on the Mac: signal monitoring (test pattern, frozen capture, lost frames, fades) implemented and unit-tested against real PAL fixtures. Capture restart/stall handling, shutdown with all LEDs off and a systemd unit are written and tested with fakes; the unit and the real reconnect have not been run on the Pi |
 | M6 | Measurement and documentation (benchmarks, complete docs) | Not started; documentation is in progress |
 
 Known problems, in order of impact:
@@ -72,10 +72,10 @@ Only the capture path exists today, as manual commands and helper tools.
 
 ```
 ambilight/
-├── src/ambilight/ # pipeline modules: config, layout, extract, color, smoothing, monitor
+├── src/ambilight/ # pipeline: config, layout, extract, color, smoothing, monitor, capture, output, metrics, pipeline
 ├── config/       # example configuration
 ├── tools/        # helper scripts: frame capture, LED test patterns, GPIO measurements
-├── tests/        # unit tests (52) for config, layout, extraction, colour correction, smoothing and signal monitoring
+├── tests/        # unit tests (74) for config, layout, extraction, colour, smoothing, signal monitoring, pipeline, capture and outputs
 ├── deploy/       # deploy and Pi setup scripts
 └── docs/         # architecture, decision log (ADR), benchmarks, hardware, ideas
 ```
@@ -130,6 +130,15 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
 ```
+
+Run the whole pipeline on any machine from a recorded file, without LEDs (record frames on the Pi with
+`v4l2-ctl --stream-mmap --stream-count=300 --stream-to=frames.uyvy`):
+
+```bash
+.venv/bin/python -m ambilight --output null --input-file frames.uyvy
+```
+
+On the Pi, the service is installed with `~/ambilight/deploy/install_service.sh` (needs `sudo`; written, not yet run).
 
 ## Tools
 

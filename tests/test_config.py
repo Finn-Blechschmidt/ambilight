@@ -62,3 +62,14 @@ def test_smoothing_delta_thresholds_must_be_ordered():
 def test_signal_times_must_be_positive():
     with pytest.raises(config.ConfigError):
         config.from_dict({"signal": {"fade_out_s": 0}})
+
+
+def test_example_config_has_capture_and_metrics_sections():
+    cfg = config.load(EXAMPLE)
+    assert cfg.capture.standard == "ntsc-m" and cfg.capture.buffers >= 2
+    assert cfg.metrics.interval_s > 0
+
+
+def test_capture_needs_at_least_two_buffers():
+    with pytest.raises(config.ConfigError):
+        config.from_dict({"capture": {"buffers": 1}})

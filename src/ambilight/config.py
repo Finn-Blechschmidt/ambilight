@@ -88,6 +88,23 @@ class Signal:
 
 
 @dataclass(frozen=True)
+class Capture:
+    """How frames are read from the grabber (V4L2). The frame size comes from [regions]."""
+    device: str = "/dev/video0"
+    input: int = 0
+    standard: str = "ntsc-m"        # ADR-004: the converter and the grabber must both be on NTSC
+    buffers: int = 4
+    restart_delay_s: float = 1.0    # pause before the capture process is restarted after it ended
+    stall_timeout_s: float = 3.0    # no frame for this long: kill the capture process so it gets restarted
+
+
+@dataclass(frozen=True)
+class Metrics:
+    interval_s: float = 10.0        # how often a summary is logged
+    json_path: str = ""             # if set, the latest summary is also written there as JSON
+
+
+@dataclass(frozen=True)
 class Config:
     layout: Layout = field(default_factory=Layout)
     regions: Regions = field(default_factory=Regions)
@@ -95,6 +112,8 @@ class Config:
     color: Color = field(default_factory=Color)
     smoothing: Smoothing = field(default_factory=Smoothing)
     signal: Signal = field(default_factory=Signal)
+    capture: Capture = field(default_factory=Capture)
+    metrics: Metrics = field(default_factory=Metrics)
 
 
 def _section(cls, data: dict, name: str):
@@ -106,7 +125,7 @@ def _section(cls, data: dict, name: str):
 
 
 def from_dict(data: dict) -> Config:
-    unknown = set(data) - {"layout", "regions", "leds", "color", "smoothing", "signal"}
+    unknown = set(data) - {"layout", "regions", "leds", "color", "smoothing", "signal", "capture", "metrics"}
     if unknown:
         raise ConfigError(f"unknown sections: {sorted(unknown)}")
     cfg = Config(
@@ -116,6 +135,8 @@ def from_dict(data: dict) -> Config:
         color=_section(Color, data.get("color", {}), "color"),
         smoothing=_section(Smoothing, data.get("smoothing", {}), "smoothing"),
         signal=_section(Signal, data.get("signal", {}), "signal"),
+        capture=_section(Capture, data.get("capture", {}), "capture"),
+        metrics=_section(Metrics, data.get("metrics", {}), "metrics"),
     )
     validate(cfg)
     return cfg
@@ -160,3 +181,8 @@ def validate(cfg: Config) -> None:
         raise ConfigError("signal: frame counts must be at least 1")
     if min(sg.lost_timeout_s, sg.fade_out_s, sg.fade_in_s) <= 0:
         raise ConfigError("signal: times must be positive")
+    cp = cfg.capture
+    if cp.buffers < 2 or cp.restart_delay_s <= 0 or cp.stall_timeout_s <= 0:
+        raise ConfigError("capture: need buffers >= 2 and positive restart_delay_s / stall_timeout_s")
+    if cfg.metrics.interval_s <= 0:
+        raise ConfigError("metrics.interval_s must be positive")

@@ -32,6 +32,11 @@ def limit_current(rgb: np.ndarray, cfg: Leds) -> np.ndarray:
     return rgb * (budget / drive)
 
 
-def to_bytes(rgb: np.ndarray) -> np.ndarray:
-    """Round to 8-bit, shape (n, 3) uint8."""
-    return np.rint(np.clip(rgb, 0.0, 255.0)).astype(np.uint8)
+def to_bytes(rgb: np.ndarray, floor: bool = False) -> np.ndarray:
+    """8-bit values, shape (n, 3) uint8. Rounds to nearest, or rounds down with `floor`.
+
+    Anything that goes through `limit_current` must be floored: rounding up can add up to half a step on each of
+    the 327 channels, enough to push the strip over its current budget.
+    """
+    clipped = np.clip(rgb, 0.0, 255.0)
+    return (np.floor(clipped) if floor else np.rint(clipped)).astype(np.uint8)

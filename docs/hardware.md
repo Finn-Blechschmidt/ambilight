@@ -143,6 +143,7 @@ Applied by `deploy/setup.sh` (needs `sudo`, run by hand because the password can
 | `/boot/firmware/config.txt`: `dtparam=audio=on` -> `dtparam=audio=off`, reboot | analogue audio uses the PWM block that drives GPIO 18 |
 | persistent systemd journal (`/var/log/journal`) | keep a log after a crash |
 | Python virtual environment `~/ambilight/.venv` with `rpi_ws281x` and `numpy` | LED output, pipeline |
+| `deploy/install_service.sh`: writes `/etc/systemd/system/ambilight.service` (runs as root for PWM/DMA), enables and starts it; creates `config/ambilight.local.toml` from the example | autostart (written, not yet run on the Pi) |
 
 Already present on a fresh Pi OS Lite image: `rsync`, `python3`, `v4l2-ctl`. Not present: `git`, `ffmpeg`.
 After disabling audio the card list shows only HDMI and the grabber's audio; the empty kernel module

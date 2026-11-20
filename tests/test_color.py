@@ -47,3 +47,12 @@ def test_budget_below_idle_current_switches_everything_off():
 def test_to_bytes_rounds_and_clips():
     out = color.to_bytes(np.array([[-5.0, 127.6, 300.0]]))
     assert out.tolist() == [[0, 128, 255]]
+
+
+def test_floor_keeps_the_limit_where_rounding_does_not():
+    leds = config.Leds(max_current_ma=2000)
+    rng = np.random.default_rng(5)
+    rgb = color.limit_current(rng.uniform(100, 255, (109, 3)), leds)
+    floored = color.to_bytes(rgb, floor=True).astype(np.float32)
+    assert color.estimated_current_ma(floored, leds) <= 2000.0
+    assert color.to_bytes(np.array([[1.9, 2.5, 254.99]]), floor=True).tolist() == [[1, 2, 254]]

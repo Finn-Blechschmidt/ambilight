@@ -19,3 +19,23 @@ def make_frame(width, height, color_at):
             y, u, v = rgb_to_yuv(*color_at(mx * 2, yy))
             view[yy, mx] = (round(u), round(y), round(v), round(y))
     return view.reshape(-1).tobytes()
+
+
+def uyvy_frame(width, height, left_rgb, right_rgb=None, luma_override=None):
+    """Fast UYVY frame: left half one colour, right half another (default the same). Returns bytes."""
+    right_rgb = right_rgb or left_rgb
+    view = np.empty((height, width // 2, 4), dtype=np.uint8)
+    for sl, rgb in ((slice(0, width // 4), left_rgb), (slice(width // 4, width // 2), right_rgb)):
+        y, u, v = rgb_to_yuv(*rgb)
+        view[:, sl] = (round(u), round(y), round(v), round(y))
+    return view.reshape(-1).tobytes()
+
+
+def bars_frame(width, height):
+    """The converter's 8-bar grey pattern as a UYVY frame (bytes)."""
+    levels = np.array([235, 215, 175, 145, 110, 80, 50, 25], dtype=np.uint8)
+    luma = np.tile(levels[np.minimum(np.arange(width) * 8 // width, 7)], (height, 1))
+    view = np.empty((height, width // 2, 4), dtype=np.uint8)
+    view[..., 0], view[..., 2] = 128, 128
+    view[..., 1], view[..., 3] = luma[:, 0::2], luma[:, 1::2]
+    return view.reshape(-1).tobytes()

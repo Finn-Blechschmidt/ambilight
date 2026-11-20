@@ -46,3 +46,15 @@ frozen_frames = 60     # byte-identical frames in a row (stalled capture) before
 lost_timeout_s = 1.0   # no frame at all for this long
 fade_out_s = 0.5
 fade_in_s = 0.3
+
+[capture]
+device = "/dev/video0"
+input = 0
+standard = "ntsc-m"      # converter switch and grabber standard must both be NTSC (docs/decisions.md ADR-004)
+buffers = 4
+restart_delay_s = 1.0    # pause before the capture process is restarted
+stall_timeout_s = 3.0    # no frame for this long: restart the capture process
+
+[metrics]
+interval_s = 10          # how often a summary is logged
+json_path = ""           # if set, the latest summary is also written there as JSON

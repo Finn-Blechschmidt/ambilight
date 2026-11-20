@@ -1,0 +1,19 @@
+[Unit]
+Description=Ambilight pipeline (analogue capture to WS2812B)
+After=multi-user.target
+
+[Service]
+Type=simple
+# The WS2812B output uses PWM/DMA through /dev/mem and needs root (ADR-005).
+User=root
+WorkingDirectory=@HOME@/ambilight
+Environment=PYTHONPATH=@HOME@/ambilight/src
+ExecStart=@HOME@/ambilight/.venv/bin/python -m ambilight --config @HOME@/ambilight/config/ambilight.local.toml
+# SIGTERM makes the pipeline switch all LEDs off before it exits.
+KillSignal=SIGTERM
+TimeoutStopSec=5
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
