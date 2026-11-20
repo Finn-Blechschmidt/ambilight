@@ -19,7 +19,7 @@ libraries.
 | M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and unit-tested on the Mac: configuration, layout and regions, colour extraction, colour correction, current limit, smoothing, the pipeline loop with metrics, a `v4l2-ctl` capture source with restart, a file replay source and the WS2812B output backend. **Not verified on hardware:** capture from the real grabber, the real LED output, any timing on the Pi |
 | M4 | Picture quality (letterbox detection, smoothing, colour correction) | Implemented and unit-tested on the Mac: smoothing, gamma, white balance (placeholder gains), letterbox detection. Not tuned on real LEDs or real letterboxed material |
 | M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Partly done on the Mac: signal monitoring (test pattern, frozen capture, lost frames, fades) implemented and unit-tested against real PAL fixtures. Capture restart/stall handling, shutdown with all LEDs off and a systemd unit are written and tested with fakes; the unit and the real reconnect have not been run on the Pi |
-| M6 | Measurement and documentation (benchmarks, complete docs) | Not started; documentation is in progress |
+| M6 | Measurement and documentation (benchmarks, complete docs) | Documentation is complete for the current state (architecture, ADR-001 to 011, hardware log, verification matrix, Pi checklist). **Benchmarks are open:** only Mac numbers exist, the Pi numbers need a healthy Pi |
 
 Known problems, in order of impact:
 
