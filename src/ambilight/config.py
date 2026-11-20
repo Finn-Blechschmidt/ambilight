@@ -68,11 +68,33 @@ class Color:
 
 
 @dataclass(frozen=True)
+class Smoothing:
+    """Adaptive exponential smoothing per LED. Time constants are in seconds, differences in 0..255 steps."""
+    tau_slow_s: float = 0.30     # small changes (noise, flicker) are smoothed with this time constant
+    tau_fast_s: float = 0.04     # large changes pass with this one
+    delta_low: float = 6.0       # change below this is treated as noise
+    delta_high: float = 40.0     # change above this is treated as a real change
+    cut_threshold: float = 70.0  # mean change over all LEDs above this is a scene cut: jump immediately
+
+
+@dataclass(frozen=True)
+class Signal:
+    """Signal monitoring: when to switch the LEDs off and how fast to fade."""
+    no_signal_frames: int = 10     # frames showing the converter's test pattern before LEDs fade out
+    frozen_frames: int = 60        # byte-identical frames in a row (a stalled capture) before LEDs fade out
+    lost_timeout_s: float = 1.0    # no frame at all for this long
+    fade_out_s: float = 0.5
+    fade_in_s: float = 0.3
+
+
+@dataclass(frozen=True)
 class Config:
     layout: Layout = field(default_factory=Layout)
     regions: Regions = field(default_factory=Regions)
     leds: Leds = field(default_factory=Leds)
     color: Color = field(default_factory=Color)
+    smoothing: Smoothing = field(default_factory=Smoothing)
+    signal: Signal = field(default_factory=Signal)
 
 
 def _section(cls, data: dict, name: str):
@@ -84,7 +106,7 @@ def _section(cls, data: dict, name: str):
 
 
 def from_dict(data: dict) -> Config:
-    unknown = set(data) - {"layout", "regions", "leds", "color"}
+    unknown = set(data) - {"layout", "regions", "leds", "color", "smoothing", "signal"}
     if unknown:
         raise ConfigError(f"unknown sections: {sorted(unknown)}")
     cfg = Config(
@@ -92,6 +114,8 @@ def from_dict(data: dict) -> Config:
         regions=_section(Regions, data.get("regions", {}), "regions"),
         leds=_section(Leds, data.get("leds", {}), "leds"),
         color=_section(Color, data.get("color", {}), "color"),
+        smoothing=_section(Smoothing, data.get("smoothing", {}), "smoothing"),
+        signal=_section(Signal, data.get("signal", {}), "signal"),
     )
     validate(cfg)
     return cfg
@@ -124,3 +148,15 @@ def validate(cfg: Config) -> None:
         raise ConfigError("color.brightness must be in [0, 1]")
     if cfg.leds.max_current_ma <= 0:
         raise ConfigError("leds.max_current_ma must be positive")
+    sm = cfg.smoothing
+    if not 0.0 < sm.tau_fast_s <= sm.tau_slow_s:
+        raise ConfigError("smoothing: need 0 < tau_fast_s <= tau_slow_s")
+    if not 0.0 <= sm.delta_low < sm.delta_high:
+        raise ConfigError("smoothing: need 0 <= delta_low < delta_high")
+    if sm.cut_threshold <= 0:
+        raise ConfigError("smoothing.cut_threshold must be positive")
+    sg = cfg.signal
+    if min(sg.no_signal_frames, sg.frozen_frames) < 1:
+        raise ConfigError("signal: frame counts must be at least 1")
+    if min(sg.lost_timeout_s, sg.fade_out_s, sg.fade_in_s) <= 0:
+        raise ConfigError("signal: times must be positive")

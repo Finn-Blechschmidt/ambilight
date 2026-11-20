@@ -13,6 +13,8 @@ documented on purpose.
 | [005](#adr-005-led-output-via-pwm-on-gpio-18-with-rpi_ws281x) | LED output via PWM on GPIO 18 with `rpi_ws281x` | Provisional, not yet validated end to end |
 | [006](#adr-006-hard-safety-limits-in-the-led-test-tool) | Hard safety limits in the LED test tool | Accepted |
 | [007](#adr-007-python-with-numpy-for-the-pipeline-provisional-with-an-exit-criterion) | Python with NumPy for the pipeline | Provisional, exit criterion defined |
+| [008](#adr-008-adaptive-smoothing-with-hysteresis-and-scene-cut-bypass) | Adaptive smoothing with hysteresis and scene-cut bypass | Accepted, parameters unverified on real LEDs |
+| [009](#adr-009-signal-monitoring-by-pattern-structure-and-exact-frame-repeats) | Signal monitoring by pattern structure and exact frame repeats | Accepted, PAL pattern only |
 
 ---
 
@@ -183,3 +185,65 @@ documented on purpose.
   and if that is not enough, move the extraction to C.
 - Consequences / trade-offs: the choice may be revised after the first real measurement; this ADR will then be
   marked superseded and linked, not deleted.
+
+## ADR-008: Adaptive smoothing with hysteresis and scene-cut bypass
+
+- Date: 2026-11-20
+- Context: Analogue composite capture is noisy, so edge colours flicker from frame to frame. Smoothing has to hide
+  that without making the LEDs lag behind real changes, and a hard scene cut should show immediately.
+- Options considered:
+  1. One fixed exponential moving average. Pro: trivial. Con: either flickers (short time constant) or lags
+     (long one).
+  2. Time constant that depends on the remaining difference between target and state. Pro: no extra state.
+     Con: see "Failed attempt".
+  3. Two time constants with hysteresis per LED, plus a global scene-cut bypass. Pro: noise is smoothed, real
+     changes are fast and converge without a tail. Con: four parameters to tune.
+- Failed attempt: the first implementation was option 2. A unit test caught that a large change (+60 steps) was only
+  71 % done after three frames, against the 85 % that was required: the time constant grows as the remaining
+  difference shrinks, which gives a slow tail at the end of every big change. Replaced by option 3.
+- Decision: option 3 (`src/ambilight/smoothing.py`). An LED switches to `tau_fast_s` (0.04 s) when it is
+  `delta_high` (40) or more away from its target and stays fast until it is within `delta_low` (6) of it. Otherwise
+  it uses `tau_slow_s` (0.30 s). If the mean change over all LEDs exceeds `cut_threshold` (70) the state jumps to the
+  new colours. The blend factor is `1 - exp(-dt / tau)` with the real frame interval, so the result does not depend
+  on the frame rate.
+- Measurement (unit tests, synthetic input, simulated time): noise with a standard deviation of 3 steps is reduced
+  to less than half; +10 steps reach under 45 % after three frames, +60 steps over 85 %; a scene cut is exact in one
+  frame; 15 frames at 30 fps and 30 frames at 60 fps differ by less than 3 steps. Cost on a Mac: 0.012 ms per frame
+  (median), not valid for the Pi.
+- Consequences / trade-offs: the default parameters are educated guesses. They have to be tuned by eye on the real
+  strip (M4/M6). Smoothing runs in the gamma-corrected output space, and the current limiter runs after it, so the
+  budget holds for what is actually sent to the strip.
+
+## ADR-009: Signal monitoring by pattern structure and exact frame repeats
+
+- Date: 2026-11-20
+- Context: With no HDMI signal the converter outputs a grey 8-bar test pattern with the text "NO SIGNAL"
+  ([ADR-002](#adr-002-capture-basics-input-standard-format)). The LEDs must fade out then instead of showing
+  its bar colours. A stalled capture or a missing grabber must be handled as well.
+- Options considered for the test pattern:
+  1. "The picture has no colour" (chroma about 0). Pro: trivial. Con: a black-and-white film or a white web page also
+     has no colour. The capture of the white login page on 2026-10-30 had chroma exactly 0, so this would switch the
+     LEDs off during legitimate content.
+  2. Compare with a stored reference image. Pro: exact. Con: breaks with any change in noise or crop, and needs the
+     NTSC pattern, which has not been captured yet.
+  3. Detect the structure: eight flat vertical bars whose brightness steps monotonically from left to right, in a
+     colourless picture. Pro: independent of exact levels and of the text. Con: a thresholds-based heuristic.
+- Options considered for a frozen picture:
+  1. Frames "almost" identical. Con: a paused video and a static menu would count as frozen.
+  2. Byte-identical frames in a row. Pro: analogue noise makes real pictures differ, only a stalled capture repeats
+     exactly. Con: untested on live hardware, a very clean source could produce identical frames.
+- Decision: structure detection for the pattern (`monitor.is_no_signal_pattern`): per-column median luma, at least
+  90 % of the pixels within 12 steps of the column profile, eight bars whose middle halves have a standard deviation of
+  at most 1.5 and whose means differ by at least 10 steps in one direction, and chroma deviation of at most 2.
+  Frozen = 60 byte-identical frames in a row. Lost = no frame for 1.0 s. All three fade the LEDs out in 0.5 s and back in
+  in 0.3 s (`src/ambilight/monitor.py`).
+- Failed attempt: the first flatness threshold (standard deviation 4.0) accepted a smooth brightness ramp as the
+  pattern. A test with a ramp caught it. Measured on the real pattern: at most 0.6; the ramp gives 3.9; the threshold is
+  now 1.5.
+- Measurement: on the real PAL capture of the pattern the detector says yes; on a real colour picture and on a real
+  colourless picture (the white web page) it says no (fixtures in `tests/data`, built by
+  `tools/make_test_fixtures.py`). Cost on a Mac: 0.20 ms per frame (median), not valid for the Pi.
+- Consequences / trade-offs: **verified only against the PAL pattern.** The converter now runs NTSC
+  ([ADR-004](#adr-004-ntsc-instead-of-pal-on-converter-and-grabber-supersedes-adr-002)) and its NTSC pattern has not
+  been captured. Live analogue noise might push the bar flatness over the threshold. Both are to be checked on the
+  Pi as soon as it is reachable. The frozen detector is likewise unverified on hardware.

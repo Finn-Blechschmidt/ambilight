@@ -16,9 +16,9 @@ libraries.
 | M0 | Repository and one-command deploy | Done |
 | M1 | Capture verified (colour frame from the right input) | Done: colour NTSC frame captured and checked against the TV |
 | M2 | LEDs verified (pin, type, colour order, count, layout, power budget) | **In progress, blocked.** Power budget and layout documented, the Pi produces a correct WS2812B signal, but no LED has lit yet |
-| M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and tested on the Mac: configuration, LED layout and regions, colour extraction, colour correction, current limit. Not done: capture loop, LED output stage, anything that needs the Pi |
-| M4 | Picture quality (letterbox detection, smoothing, colour correction) | Not started |
-| M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Not started |
+| M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and tested on the Mac: configuration, LED layout and regions, colour extraction, colour correction, current limit, smoothing. Not done: capture loop, LED output stage, anything that needs the Pi |
+| M4 | Picture quality (letterbox detection, smoothing, colour correction) | Partly done on the Mac: smoothing and colour correction implemented and unit-tested. Letterbox detection not started. Parameters not tuned on real LEDs |
+| M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Partly done on the Mac: signal monitoring (test pattern, frozen capture, lost frames, fades) implemented and unit-tested against real PAL fixtures. Reconnect, service and shutdown not started; nothing verified on hardware |
 | M6 | Measurement and documentation (benchmarks, complete docs) | Not started; documentation is in progress |
 
 Known problems, in order of impact:
@@ -72,10 +72,10 @@ Only the capture path exists today, as manual commands and helper tools.
 
 ```
 ambilight/
-├── src/ambilight/ # pipeline modules: config, layout, extract, color (more to come)
+├── src/ambilight/ # pipeline modules: config, layout, extract, color, smoothing, monitor
 ├── config/       # example configuration
 ├── tools/        # helper scripts: frame capture, LED test patterns, GPIO measurements
-├── tests/        # unit tests (26) for config, layout, extraction and colour correction
+├── tests/        # unit tests (52) for config, layout, extraction, colour correction, smoothing and signal monitoring
 ├── deploy/       # deploy and Pi setup scripts
 └── docs/         # architecture, decision log (ADR), benchmarks, hardware, ideas
 ```

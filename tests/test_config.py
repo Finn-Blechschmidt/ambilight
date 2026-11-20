@@ -41,3 +41,24 @@ def test_depth_that_leaves_no_side_room_is_rejected():
 def test_odd_frame_width_is_rejected():
     with pytest.raises(config.ConfigError):
         config.from_dict({"regions": {"frame_width": 721}})
+
+
+def test_example_config_has_smoothing_and_signal_sections():
+    cfg = config.load(EXAMPLE)
+    assert cfg.smoothing.tau_fast_s < cfg.smoothing.tau_slow_s
+    assert cfg.signal.no_signal_frames >= 1
+
+
+def test_smoothing_time_constants_must_be_ordered():
+    with pytest.raises(config.ConfigError):
+        config.from_dict({"smoothing": {"tau_fast_s": 0.5, "tau_slow_s": 0.1}})
+
+
+def test_smoothing_delta_thresholds_must_be_ordered():
+    with pytest.raises(config.ConfigError):
+        config.from_dict({"smoothing": {"delta_low": 50, "delta_high": 10}})
+
+
+def test_signal_times_must_be_positive():
+    with pytest.raises(config.ConfigError):
+        config.from_dict({"signal": {"fade_out_s": 0}})

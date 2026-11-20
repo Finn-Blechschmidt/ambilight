@@ -32,3 +32,17 @@ idle_ma_per_led = 1
 [color]
 gamma = 2.2
 brightness = 1.0
+
+[smoothing]
+tau_slow_s = 0.30     # small changes (noise, flicker) are smoothed with this time constant
+tau_fast_s = 0.04     # large changes pass with this one
+delta_low = 6         # change below this (0..255 steps) counts as noise
+delta_high = 40       # change above this counts as a real change
+cut_threshold = 70    # mean change over all LEDs above this is a scene cut: jump immediately
+
+[signal]
+no_signal_frames = 10  # frames of the converter's test pattern before the LEDs fade out
+frozen_frames = 60     # byte-identical frames in a row (stalled capture) before the LEDs fade out
+lost_timeout_s = 1.0   # no frame at all for this long
+fade_out_s = 0.5
+fade_in_s = 0.3
