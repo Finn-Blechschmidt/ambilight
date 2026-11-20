@@ -12,6 +12,7 @@ documented on purpose.
 | [004](#adr-004-ntsc-instead-of-pal-on-converter-and-grabber-supersedes-adr-002) | NTSC instead of PAL on converter and grabber | Accepted |
 | [005](#adr-005-led-output-via-pwm-on-gpio-18-with-rpi_ws281x) | LED output via PWM on GPIO 18 with `rpi_ws281x` | Provisional, not yet validated end to end |
 | [006](#adr-006-hard-safety-limits-in-the-led-test-tool) | Hard safety limits in the LED test tool | Accepted |
+| [007](#adr-007-python-with-numpy-for-the-pipeline-provisional-with-an-exit-criterion) | Python with NumPy for the pipeline | Provisional, exit criterion defined |
 
 ---
 
@@ -152,3 +153,33 @@ documented on purpose.
   All LEDs are switched off on exit, on Ctrl-C and on SIGTERM.
 - Consequences: the largest test load is about 8 LEDs x 60 mA x 32/255, roughly 60 mA. The production pipeline
   needs its own configurable current limit (planned, not implemented).
+
+## ADR-007: Python with NumPy for the pipeline (provisional, with an exit criterion)
+
+- Date: 2026-11-20
+- Context: [ADR-003](#adr-003-keep-developing-on-the-faulty-pi-move-measurements-to-the-replacement-pi) postponed the
+  language choice until there are measurements on a healthy Pi. The owner asked to implement M3 to M5 without the new
+  Pi and to test later. The Pi was unreachable when this was decided, so nothing could be measured on it.
+- Options considered:
+  1. Python 3 + NumPy. Pro: fast iteration, easy tests on the Mac, `rpi_ws281x` and `tomllib` are available, regions
+     need only a small part of each frame. Con: interpreter overhead on a Cortex-A53; the per-call cost of many small
+     NumPy operations can dominate.
+  2. C. Pro: lowest CPU use and latency, full control. Con: slower to write and test, manual memory handling, more
+     code for configuration, tests and service logic.
+  3. Rust or Go. Pro: fast and safe. Con: toolchain and cross-compilation overhead on the Pi, no mature WS281x
+     library at hand, no experience reuse in this repository.
+- Decision: Option 1 for everything, with the hot path kept narrow and measurable. The code is structured so that
+  the frame-to-colours step (`extract.py`) can be replaced by a C extension without touching the other stages.
+- Rationale: most of the pipeline logic (layout, colour maths, smoothing, signal monitoring, configuration) is cheap
+  per frame and benefits most from quick iteration and tests. Only the extraction touches pixel data, and it only
+  reads the border bands.
+- Measurement (Mac, indicative only, not valid for the Pi): colour extraction for 109 regions plus gamma, current
+  limit and conversion to bytes takes a median of 1.0 to 1.1 ms per frame (p99 1.1 to 2.2 ms), nearly independent of
+  how many rows are sampled. That points to per-call overhead (109 small NumPy calls), not pixel work, as the cost.
+  The Pi will be considerably slower; by how much is unknown.
+- Exit criterion (to be checked on a healthy Pi, `get_throttled` = `0x0`): if the extraction plus colour stages exceed
+  8 ms at the 99th percentile (about a quarter of the 33.4 ms frame interval), or the whole pipeline needs more than
+  40 % of one core at 29.97 fps, first vectorise the extraction (one pass over the border bands instead of 109 calls),
+  and if that is not enough, move the extraction to C.
+- Consequences / trade-offs: the choice may be revised after the first real measurement; this ADR will then be
+  marked superseded and linked, not deleted.

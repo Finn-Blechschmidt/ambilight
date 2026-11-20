@@ -21,7 +21,7 @@ sudo systemctl restart systemd-journald
 
 python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip
-"$APP_DIR/.venv/bin/pip" install rpi_ws281x
+"$APP_DIR/.venv/bin/pip" install rpi_ws281x -r "$APP_DIR/requirements.txt"
 
 echo "Throttle state (expect 0x0):"
 vcgencmd get_throttled

@@ -16,7 +16,7 @@ libraries.
 | M0 | Repository and one-command deploy | Done |
 | M1 | Capture verified (colour frame from the right input) | Done: colour NTSC frame captured and checked against the TV |
 | M2 | LEDs verified (pin, type, colour order, count, layout, power budget) | **In progress, blocked.** Power budget and layout documented, the Pi produces a correct WS2812B signal, but no LED has lit yet |
-| M3 | Pipeline MVP (edge colours on the LEDs in real time) | Not started |
+| M3 | Pipeline MVP (edge colours on the LEDs in real time) | **In progress, partly without hardware.** Done and tested on the Mac: configuration, LED layout and regions, colour extraction, colour correction, current limit. Not done: capture loop, LED output stage, anything that needs the Pi |
 | M4 | Picture quality (letterbox detection, smoothing, colour correction) | Not started |
 | M5 | Robustness (no-signal handling, grabber reconnect, systemd service, clean shutdown) | Not started |
 | M6 | Measurement and documentation (benchmarks, complete docs) | Not started; documentation is in progress |
@@ -72,10 +72,10 @@ Only the capture path exists today, as manual commands and helper tools.
 
 ```
 ambilight/
-├── src/          # pipeline modules (empty so far)
+├── src/ambilight/ # pipeline modules: config, layout, extract, color (more to come)
 ├── config/       # example configuration
 ├── tools/        # helper scripts: frame capture, LED test patterns, GPIO measurements
-├── tests/        # unit and replay tests (empty so far)
+├── tests/        # unit tests (26) for config, layout, extraction and colour correction
 ├── deploy/       # deploy and Pi setup scripts
 └── docs/         # architecture, decision log (ADR), benchmarks, hardware, ideas
 ```
@@ -119,6 +119,17 @@ Prerequisites: a Raspberry Pi 3 B+ with Raspberry Pi OS Lite 64-bit, SSH key log
    ```bash
    ssh ambilight vcgencmd get_throttled
    ```
+
+## Development and tests
+
+The pipeline code is Python with NumPy ([ADR-007](docs/decisions.md), provisional). The tests run on the Mac without any
+hardware:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+```
 
 ## Tools
 

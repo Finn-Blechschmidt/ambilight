@@ -41,12 +41,12 @@ flowchart LR
 |---|---|---|
 | Capture | Read frames from the grabber through V4L2, set input/standard/format, reconnect on device loss | Manual only: `v4l2-ctl` commands and `tools/capture_frame.sh` (ADR-002, ADR-004). No in-process capture code |
 | Pre-processing | Downscale, handle interlacing, crop overscan borders, detect and ignore letterbox bars | Not started. The captured frames show about 8 px black borders and interlacing combing |
-| Regions and colour extraction | One picture region per LED along the edge (from the layout), one representative colour per region (mean, median, weighted, dominant, to be decided and measured) | Not started |
-| Colour correction | Gamma, white balance, brightness limit, **current limit** matched to the supply | Not started |
+| Regions and colour extraction | One picture region per LED along the edge (from the layout), one representative colour per region (mean, median, weighted, dominant, to be decided and measured) | Layout and mean colour per region implemented (`src/ambilight/layout.py`, `extract.py`), 26 unit tests on the Mac. Median/weighted variants and timing on the Pi are open |
+| Colour correction | Gamma, white balance, brightness limit, **current limit** matched to the supply | Gamma, brightness and current limit implemented (`color.py`) and unit-tested. White balance/calibration open (needs the real strip) |
 | Temporal smoothing | No flicker without feeling sluggish; fast reaction to scene cuts | Not started |
 | LED output | Drive the WS2812B strip (pin, colour order and count from the config) | Provisional method decided ([ADR-005](decisions.md)); no LED has lit yet ([hardware.md](hardware.md)) |
 | Signal monitoring | Detect no signal, a frozen picture or the converter's "NO SIGNAL" pattern and fade the LEDs out | Not started. Known: the converter's pattern is a grey 8-bar picture with text (seen in PAL mode, still to be checked in NTSC) |
-| Configuration | One file for the LED layout, pin, gamma, brightness, smoothing, no magic numbers in code | Example file only (`config/ambilight.example.toml`) |
+| Configuration | One file for the LED layout, pin, gamma, brightness, smoothing, no magic numbers in code | Implemented: validated TOML loading (`config.py`), example in `config/ambilight.example.toml` |
 | Metrics and logging | fps, per-stage latency, CPU load, retrievable without a debugger | Not started |
 | Service | systemd unit, autostart, clean shutdown with all LEDs off | Not started. The test tool already switches the LEDs off on exit |
 

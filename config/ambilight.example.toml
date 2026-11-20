@@ -1,6 +1,34 @@
 # Example configuration. Copy to ambilight.local.toml and adjust.
+# Values marked "unverified" are confirmed with the hardware in milestone M2.
+
+[layout]
+# LEDs per segment in strip order: start at the bottom centre right of a gap of one LED,
+# bottom (towards the right), right side (up), top (towards the left), left side (down), bottom (to the gap).
+bottom_right = 17
+right = 20
+top = 35
+left = 20
+bottom_left = 17
+gap = 1
+direction = "ccw"   # unverified: "ccw" = bottom -> right -> top -> left as seen from the front, "cw" = mirrored
+
+[regions]
+frame_width = 720   # NTSC, see docs/decisions.md ADR-004
+frame_height = 480
+crop_left = 8       # overscan / blanking border that is ignored
+crop_right = 8
+crop_top = 8
+crop_bottom = 8
+depth_x = 64        # how far a side region reaches into the picture, pixels
+depth_y = 48        # same for top and bottom regions
+
 [leds]
-# Layout from the sketch: bottom 17 + gap of 1 LED + 17, right 20, top 35, left 20.
-count = 109
-gpio_pin = 18          # Pin 12, PWM0
-color_order = "GRB"    # unverified, see M2
+gpio_pin = 18          # pin 12, PWM0
+color_order = "GRB"    # unverified
+max_current_ma = 2000  # current budget for the whole strip, enforced in software
+ma_per_channel = 20
+idle_ma_per_led = 1
+
+[color]
+gamma = 2.2
+brightness = 1.0

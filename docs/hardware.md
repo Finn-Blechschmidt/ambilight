@@ -142,7 +142,7 @@ Applied by `deploy/setup.sh` (needs `sudo`, run by hand because the password can
 | `apt install rsync python3 python3-venv python3-dev scons gcc v4l-utils` | deployment, capture tools, building `rpi_ws281x` |
 | `/boot/firmware/config.txt`: `dtparam=audio=on` -> `dtparam=audio=off`, reboot | analogue audio uses the PWM block that drives GPIO 18 |
 | persistent systemd journal (`/var/log/journal`) | keep a log after a crash |
-| Python virtual environment `~/ambilight/.venv` with `rpi_ws281x` | LED output |
+| Python virtual environment `~/ambilight/.venv` with `rpi_ws281x` and `numpy` | LED output, pipeline |
 
 Already present on a fresh Pi OS Lite image: `rsync`, `python3`, `v4l2-ctl`. Not present: `git`, `ffmpeg`.
 After disabling audio the card list shows only HDMI and the grabber's audio; the empty kernel module
