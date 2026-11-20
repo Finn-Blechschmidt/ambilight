@@ -14,3 +14,6 @@ captures/
 .DS_Store
 .idea/
 .vscode/
+
+# Local assistant instructions (internal, not part of the published project)
+CLAUDE.md
