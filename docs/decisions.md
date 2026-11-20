@@ -1,69 +1,154 @@
-# Entscheidungslog (ADR)
+# Decision log (ADR)
 
-Jeder Eintrag: Datum, Kontext, Optionen, Entscheidung, Begründung, Messung, Konsequenzen.
-Revidierte Entscheidungen werden nicht gelöscht, sondern verlinkt.
+One entry per technical decision: context, options considered, decision, rationale, measurement, consequences.
+Superseded decisions are not deleted; they are marked and linked to their replacement. Failed attempts are
+documented on purpose.
 
-## ADR-001: Deploy per rsync über SSH-Host-Alias
-- Datum: 2026-10-30
-- Kontext: Entwicklung auf dem Mac, Ausführung auf dem Pi. Das Repo wird öffentlich, darf also keine IPs oder Benutzernamen enthalten. Deploy soll mit einem Befehl funktionieren.
-- Betrachtete Optionen:
-  1. `rsync` vom Mac auf den Pi. Vorteil: schnell, kein Git-Zugang auf dem Pi nötig, auch uncommittete Änderungen testbar. Nachteil: Pi-Stand ist nicht automatisch an einen Commit gebunden.
-  2. `git pull` auf dem Pi. Vorteil: Stand ist ein Commit. Nachteil: braucht Remote und Commit/Push pro Testlauf, Iteration langsamer.
-  3. CI/Paketbau (z. B. .deb). Vorteil: sauber. Nachteil: für den Umfang überdimensioniert.
-- Entscheidung: Option 1, `deploy/deploy.sh`, Ziel über SSH-Alias `ambilight` (überschreibbar per `AMBILIGHT_HOST`).
-- Begründung: kürzeste Iterationszeit auf dem Pi; Host-Details bleiben in `~/.ssh/config` und damit außerhalb des Repos.
-- Messung/Beleg: Deploy-Test steht noch aus, der Pi war bei M0-Start nicht erreichbar (No route to host).
-- Konsequenzen/Trade-offs: `--delete` entfernt Dateien auf dem Pi, die lokal fehlen. Der Zielordner `~/ambilight` darf daher keine Handarbeit enthalten.
+| ADR | Title | Status |
+|---|---|---|
+| [001](#adr-001-deploy-with-rsync-over-an-ssh-host-alias) | Deploy with rsync over an SSH host alias | Accepted |
+| [002](#adr-002-capture-basics-input-standard-format) | Capture basics (input, standard, format) | Partly superseded by ADR-004 |
+| [003](#adr-003-keep-developing-on-the-faulty-pi-move-measurements-to-the-replacement-pi) | Keep developing on the faulty Pi, move measurements to the replacement | Accepted |
+| [004](#adr-004-ntsc-instead-of-pal-on-converter-and-grabber-supersedes-adr-002) | NTSC instead of PAL on converter and grabber | Accepted |
+| [005](#adr-005-led-output-via-pwm-on-gpio-18-with-rpi_ws281x) | LED output via PWM on GPIO 18 with `rpi_ws281x` | Provisional, not yet validated end to end |
+| [006](#adr-006-hard-safety-limits-in-the-led-test-tool) | Hard safety limits in the LED test tool | Accepted |
 
-## ADR-002: Capture-Grundeinstellungen (Eingang, Norm, Format)
-- Datum: 2026-10-30
-- Kontext: Der STK1160 (`/dev/video0`, Treiber `stk1160`) startet mit NTSC-M, 720x480. Die Signalkette ist PAL (625 Zeilen, 25 Hz, interlaced).
-- Betrachtete Optionen:
-  1. Norm automatisch erkennen lassen (`PAL|NTSC`). Vorteil: kein Eingriff nötig. Nachteil: Der Treiber startet in NTSC, Erkennung wurde nicht geprüft und kann bei Signalverlust springen.
-  2. Norm fest auf PAL setzen (aus Config). Vorteil: deterministisch, 720x576 sofort. Nachteil: nicht für NTSC-Quellen, für diesen Aufbau irrelevant.
-- Entscheidung (vorläufig, M1): Eingang 0 (Composite0), Norm PAL (revidiert durch ADR-004, jetzt NTSC) (`v4l2-ctl -s pal`), Format UYVY 720x576, Feld Interlaced. Der Treiber bietet nur UYVY an.
-- Begründung: Mit diesen Werten kam beim ersten Versuch ein stabiles Bild. Die Werte kommen später aus der Config.
-- Messung/Beleg: Ein Frame (829440 Bytes = 720*576*2) aufgenommen, per `tools/uyvy2png.py` konvertiert. Zu sehen ist das Konverter-Testbild „NO SIGNAL“, die Signalquelle war aus. Der Grabber synchronisiert also sauber auf den Konverter.
-- Erkenntnis: Der HDMI-to-AV-Konverter gibt ohne HDMI-Signal ein graues 8-Balken-Bild mit Text „NO SIGNAL“ aus. Die Signalüberwachung (M5) muss dieses Muster erkennen (Graustufen, keine Farbe), sonst zeigen die LEDs Müll.
-- Noch offen: Bild mit echter Quelle prüfen, Interlacing-Verhalten und Overscan-Ränder beurteilen, Frame-Timing messen. Die Aufnahme zeigte schwarze Ränder links und unten. `VIDIOC_CREATE_BUFS` meldet einen harmlosen Fehler von v4l2-ctl.
-- Konsequenzen/Trade-offs: PAL ist fest verdrahtet, solange die Config nichts anderes sagt.
+---
 
-### Nachtrag ADR-002 (2026-10-30): Bild mit echter Quelle
-- Mit laufender Quelle: stabiles Bild, gemessen 25,00 fps (100 Frames, `v4l2-ctl --stream-count=100`), 720x576.
-- Ränder: ca. 8 Pixel schwarz links/rechts/oben/unten (Luma ~26-35 statt ~215 im Bild). Das ist Overscan/Austastung und wird später beim Zuschnitt entfernt.
-- **Problem: Das Bild ist komplett schwarzweiß.** U und V sind in allen Pixeln exakt 128 (Chroma 0,0). Das gilt für PAL-BG, PAL-N, PAL-Nc, SECAM, PAL-60, NTSC-443 und den Default. Die Decoder-Farbverstärkung steht per AGC auf 15 (Default 40), der Decoder sieht also keinen Farbträger.
-- Einordnung: Die Normumschaltung ändert nichts. Wahrscheinlich liefert die Kette (Konverter oder Quelle) kein Farbsignal. Treiberseitig gibt es keinen Hinweis auf einen Fehler. Ohne Farbe wäre das Ambilight nutzlos, das Problem blockiert M1.
+## ADR-001: Deploy with rsync over an SSH host alias
 
-## ADR-003: Entwicklung auf dem defekten Pi fortsetzen, Messungen auf den Ersatz-Pi verschieben
-- Datum: 2026-10-30
-- Kontext: Der Pi meldet dauerhaft Unterspannung (`get_throttled=0x50005`), auch ohne Grabber, mit zwei Kabeln und zwei Netzteilen. Die Platine ist sichtbar verbogen, Finn vermutet einen Hardwaredefekt und bestellt einen Ersatz-Pi 3B+.
-- Betrachtete Optionen:
-  1. Stoppen, bis der neue Pi da ist. Vorteil: keine Messung auf kaputter Hardware. Nachteil: Stillstand, obwohl der Großteil der Arbeit hardwareunabhängig ist.
-  2. Weiterentwickeln auf dem alten Pi, Messungen und LED-Tests später auf dem neuen. Vorteil: Fortschritt. Nachteil: Ergebnisse vom alten Pi sind nur eingeschränkt gültig.
-  3. Image vom alten Pi auf den neuen klonen. Vorteil: schnell. Nachteil: übernimmt Altlasten und ist nicht reproduzierbar dokumentiert.
-- Entscheidung: Option 2, und der neue Pi wird per `deploy/setup.sh` eingerichtet statt per Image-Klon.
-- Begründung: Capture, Pipeline-Logik, Farbmathematik, Glättung und Tests laufen hardwareunabhängig. Das Setup-Skript erfüllt die Pflicht, ein frisches Image reproduzierbar einzurichten (Arbeitsregel 4).
-- Was auf dem alten Pi NICHT belastbar ist: CPU-Last, Latenz, FPS unter Last, Temperatur, jede Zeitmessung (Takt ist durch Unterspannung begrenzt, im Leerlauf 600 MHz). Die Sprachwahl (ADR) wird deshalb erst nach Messungen auf dem neuen Pi festgelegt, bis dahin entsteht nur sprachunabhängiger Code und Doku.
-- LEDs: Der erste LED-Test (M2) findet nur auf dem neuen Pi statt. Der Streifen ist zeitkritisch (Takt), und eine verbogene, unterversorgte Platine ist ein unnötiges Risiko für Pi und LEDs.
-- Konsequenzen/Trade-offs: Ein Teil der Meilensteine (M3 bis M6) schiebt sich nach hinten. Messwerte von heute werden in `benchmarks.md` als „alter Pi, ungültig“ markiert.
+- Date: 2026-10-30
+- Context: Development happens on a Mac, the code runs on the Pi. The repository is public, so it must not contain
+  IP addresses or user names. Deploying must work with a single command.
+- Options considered:
+  1. `rsync` from the Mac to the Pi. Pro: fast, no Git access needed on the Pi, uncommitted changes can be tested.
+     Con: the state on the Pi is not automatically tied to a commit.
+  2. `git pull` on the Pi. Pro: the state is a commit. Con: needs a remote and a commit/push per test run, slower
+     iteration.
+  3. CI / package build (for example a `.deb`). Pro: clean. Con: oversized for this project.
+- Decision: Option 1, `deploy/deploy.sh`. The target is the SSH alias `ambilight` (overridable with
+  `AMBILIGHT_HOST`).
+- Rationale: shortest iteration time; host details stay in `~/.ssh/config` and therefore outside the repository.
+- Measurement: a deploy of the (then tiny) tree took 1.7 s end to end.
+- Consequences / trade-offs: `--delete` removes files on the Pi that do not exist locally, so `~/ambilight` must
+  not hold hand-made files.
+- Amendment (2026-10-30), a failed attempt: the first version of the script did not exclude the Python virtual
+  environment `~/ambilight/.venv`. A later deploy deleted it on the Pi and the next LED test failed with
+  `python: command not found`. Fix: `.venv/` is now excluded in `deploy/deploy.sh`.
 
-### Nachtrag ADR-002 (2026-10-30, 2): Farbtest mit bunter Quelle
-- `tools/capture_frame.sh` funktioniert (Deploy, Capture, Konvertierung, Statistik in einem Befehl).
-- Quelle: YouTube „Ambilight Color Test – All Colors“ (Farbrad). Aufnahme: komplett grau, Chroma 0,00/0,00. Die Quelle ist also bunt, die Farbe geht zwischen Konverter und Decoder verloren.
-- Eingänge 0 bis 3 liefern identische Bilder (Luma 86), Eingang 4 (S-Video) nur Schwarz (Luma 26). Es gibt physisch nur einen Composite-Eingang.
-- Decoder laut `dmesg`: `saa7113 found @ 0x4a (stk1160)`.
-- Konverter-Schalter stand auf PAL, Grabber auf PAL, Chroma blieb 0. Als Nächstes: Konverter auf NTSC, Grabber auf NTSC, Frame prüfen.
+## ADR-002: Capture basics (input, standard, format)
 
-## ADR-004: NTSC statt PAL am Konverter und Grabber (revidiert ADR-002)
-- Datum: 2026-10-30
-- Kontext: Mit Konverter und Grabber auf PAL kam das Bild komplett schwarzweiß an (Chroma exakt 0, ADR-002 Nachträge). Normwechsel am Grabber allein (PAL-BG/N/Nc, SECAM, PAL-60, NTSC-443) änderte nichts. Der Konverter hat einen PAL/NTSC-Schalter.
-- Betrachtete Optionen:
-  1. PAL beibehalten (625 Zeilen, 25 Hz, 720x576). Vorteil: mehr Zeilen. Nachteil: kein Farbsignal, damit unbrauchbar.
-  2. Konverter und Grabber auf NTSC (525 Zeilen, ca. 29,97 Hz, 720x480). Vorteil: Farbe kommt an, höhere Bildrate, kürzere Frameabstände. Nachteil: weniger Zeilen (für Ambilight-Ränder irrelevant).
-  3. Anderen Konverter oder Eingang suchen. Nicht nötig geworden.
-- Entscheidung: Option 2. Konverter-Schalter auf NTSC, Grabber `ntsc-m`, 720x480, UYVY, interlaced.
-- Begründung: Es ist die einzige getestete Konfiguration, in der Farbe ankommt.
-- Messung/Beleg: Test mit „Ambilight Color Test“ als Quelle. PAL: Chroma 0,00/0,00. NTSC-M: Chroma 27,96/26,45, Farbrad vollständig, Decoder-Farbverstärkung steigt von 15 auf 54. Bildrate: 150 Frames in 5,15 s = 29,13 fps inklusive Stream-Start (nominal 30000/1001). Der Wert vom alten Pi ist nur ein Richtwert, siehe ADR-003.
-- Ursachenvermutung (nicht bewiesen): Der Konverter liefert in der PAL-Stellung kein oder ein für den Decoder unlesbares Farbsignal. Ursache wurde nicht weiter untersucht.
-- Konsequenzen/Trade-offs: Schalter am Konverter muss auf NTSC bleiben. Das Bild ist stark von Interlacing (Kammartefakte) und Farbsäumen geprägt, das berücksichtigt die Vorverarbeitung. Signalerkennung (M5) muss das NTSC-Format kennen, das „NO SIGNAL“-Bild des Konverters ist noch unter NTSC zu prüfen.
-- Verworfen/revidiert: ersetzt die PAL-Annahme in ADR-002 (Eingang 0 und UYVY bleiben).
+- Date: 2026-10-30
+- Status: the video standard part is superseded by [ADR-004](#adr-004-ntsc-instead-of-pal-on-converter-and-grabber-supersedes-adr-002).
+  Input 0 and the UYVY format still hold.
+- Context: The STK1160 (`/dev/video0`, driver `stk1160`) starts up with NTSC-M, 720x480. The signal chain was
+  assumed to be PAL (625 lines, 25 Hz, interlaced).
+- Options considered:
+  1. Let the driver detect the standard automatically. Pro: no manual step. Con: the driver starts in NTSC,
+     detection was not verified and can jump on signal loss.
+  2. Fix the standard (later: from the config). Pro: deterministic. Con: no mixed PAL/NTSC sources, irrelevant
+     for this setup.
+- Decision (provisional at the time): input 0 (Composite0), PAL, UYVY 720x576, interlaced. The driver only offers
+  UYVY.
+- Rationale: a stable picture on the first try.
+- Measurement: one frame (829,440 bytes = 720 x 576 x 2) captured and converted with `tools/uyvy2png.py`. It
+  showed the converter's "NO SIGNAL" test pattern because the source was off.
+- Finding: with no HDMI signal the HDMI-to-AV converter outputs a grey 8-bar pattern with the text "NO SIGNAL".
+  Signal monitoring (M5) has to recognise this pattern (grey scale, no colour) or the LEDs would show garbage.
+- Follow-up with a live source (same day): stable picture at 25.00 fps (100 frames, `v4l2-ctl --stream-count`),
+  about 8 px black border on every side (luma about 26 to 35 versus about 215 in the picture; overscan/blanking,
+  to be cropped later). **The picture was completely black and white**: U and V were exactly 128 in every pixel
+  (chroma 0.0). This did not change with PAL-BG, PAL-N, PAL-Nc, SECAM, PAL-60 or NTSC-443 on the grabber, and the
+  decoder's chroma AGC gain sat at 15 (default 40), meaning the decoder saw no colour subcarrier. Inputs 0 to 3 gave
+  identical pictures (one physical composite input), input 4 (S-Video) gave black. `dmesg`: `saa7113 found @ 0x4a`.
+- Consequences: led to ADR-004.
+
+## ADR-003: Keep developing on the faulty Pi, move measurements to the replacement Pi
+
+- Date: 2026-10-30
+- Context: The Pi reports persistent under-voltage (`get_throttled=0x50005`), also without the grabber, with two
+  cables and two power supplies (see [hardware.md](hardware.md)). The board is visibly bent; the owner suspects a
+  hardware defect and orders a replacement Pi 3 B+.
+- Options considered:
+  1. Stop until the new Pi arrives. Pro: no measurements on broken hardware. Con: standstill although most of the
+     work is hardware independent.
+  2. Keep developing on the old Pi; do measurements and LED tests later on the new one. Pro: progress. Con: results
+     from the old Pi are only partly valid.
+  3. Clone the old Pi's image onto the new Pi. Pro: quick. Con: carries over leftovers, not reproducible and not
+     documented.
+- Decision: Option 2. The new Pi is set up with `deploy/setup.sh`, not by cloning an image.
+- Rationale: capture, pipeline logic, colour maths, smoothing and tests are hardware independent. The setup script
+  keeps a fresh image reproducible.
+- Not reliable on the old Pi: CPU load, latency, fps under load, temperature, every timing result (the clock is
+  limited by under-voltage; 600 MHz at idle). The language choice (ADR) is therefore postponed until there are
+  measurements on a healthy Pi. Until then only language-independent code and documentation are produced.
+- LEDs: the original plan was to run the first LED test (M2) only on the new Pi. The owner chose to try it on the
+  old Pi anyway, see ADR-005/006 and [hardware.md](hardware.md).
+- Consequences / trade-offs: M3 to M6 move back. Numbers measured on the old Pi are labelled as such in
+  [benchmarks.md](benchmarks.md).
+
+## ADR-004: NTSC instead of PAL on converter and grabber (supersedes ADR-002)
+
+- Date: 2026-10-30
+- Context: With converter and grabber on PAL the picture arrived completely black and white (chroma exactly 0, see
+  ADR-002). Changing the standard on the grabber alone did not help. The converter has a PAL/NTSC switch.
+- Options considered:
+  1. Keep PAL (625 lines, 25 Hz, 720x576). Pro: more lines. Con: no colour, unusable.
+  2. Converter and grabber on NTSC (525 lines, about 29.97 Hz, 720x480). Pro: colour arrives, higher frame rate,
+     shorter frame interval. Con: fewer lines (irrelevant for edge colours).
+  3. Look for another converter or input. Not needed.
+- Decision: Option 2. Converter switch on NTSC, grabber `ntsc-m`, 720x480, UYVY, interlaced.
+- Rationale: the only tested configuration in which colour arrives.
+- Measurement: source was the YouTube video "Ambilight Color Test - All Colors" (colour wheel).
+  PAL: chroma 0.00 / 0.00, grey wheel. NTSC-M: chroma 27.96 / 26.45, full colour wheel, decoder chroma gain rose
+  from 15 to 54. Frame rate: 150 frames in 5.15 s = 29.13 fps including stream start-up (nominal 30000/1001). The
+  value comes from the faulty Pi and is indicative only (ADR-003). The owner confirmed that the captured frame
+  matches the picture on the TV.
+- Presumed cause (not proven): in its PAL position the converter delivers no colour signal, or one the decoder
+  cannot lock to. Not investigated further.
+- Consequences / trade-offs: the converter switch has to stay on NTSC. The picture shows interlacing combing and
+  colour fringing, which pre-processing has to account for. The converter's "NO SIGNAL" pattern still has to be
+  checked in NTSC mode for signal monitoring (M5).
+- Replaces: the PAL assumption in ADR-002 (input 0 and UYVY stay).
+
+## ADR-005: LED output via PWM on GPIO 18 with `rpi_ws281x`
+
+- Date: 2026-10-30
+- Status: provisional. The signal leaves the Pi correctly, but no LED has reacted yet, so the method is not
+  validated end to end.
+- Context: The data wire was already connected to GPIO 18 (physical pin 12) and the strip is WS2812B-type, so the
+  output method has to work on that pin.
+- Options considered:
+  1. PWM via the `rpi_ws281x` library (DMA-driven, GPIO 12/18 for PWM0, 13/19 for PWM1). Pro: works on the wired
+     pin, mature library. Con: needs root, claims the PWM block (analogue audio must be disabled), only usable on
+     certain pins.
+  2. SPI (MOSI, GPIO 10, pin 19). Pro: no root for the hardware access, stable clock. Con: needs a different pin
+     and `core_freq` care on the Pi 3.
+  3. PCM (GPIO 21, pin 40). Pro: does not touch PWM. Con: a different pin as well.
+  4. Bit-banging from user space. Con: cannot meet the 400 ns timing reliably.
+- Decision: Option 1 on GPIO 18. Options 2 and 3 are kept as fallback if the pin turns out to be damaged
+  (`tools/led_test.py --pin` already supports 12, 13, 18, 19, 21).
+- Rationale: no re-wiring needed for the first test; the library exposes brightness, strip type and frequency.
+- Measurement: with `led_test.py mark --stream` running, `tools/gpio_pulse.c` sampled the pin (111 ns per read):
+  111,265 high pulses, widths 300 to 599 ns with the peak at 400 to 499 ns, rising-edge to rising-edge 1100 to
+  1399 ns with the peak at 1200 to 1299 ns. That matches WS2812B at 800 kHz (0 bit about 0.4 us high, 1.25 us
+  period). Idle pin: 0 level changes. Voltage amplitude cannot be judged this way.
+- Setup consequences: `dtparam=audio=off` in `/boot/firmware/config.txt`, `python3-dev` and `scons` for the build,
+  a virtual environment with `rpi_ws281x`, and root for each run (see [hardware.md](hardware.md)).
+- Open: no LED lit with 800 or 400 kHz, 24 or 32 bit. Later the pin readback became abnormal (GPIO 18 stuck high),
+  see [hardware.md](hardware.md).
+
+## ADR-006: Hard safety limits in the LED test tool
+
+- Date: 2026-10-30
+- Context: Rule for this project: before the LEDs are driven for the first time use low brightness and few LEDs,
+  and never all LEDs at full white without an active current limit. 109 LEDs can draw 6.5 A, the supply is
+  rated 10 A, and the Pi itself had a power problem.
+- Options considered:
+  1. Safe defaults only (command-line flags can raise them). Pro: flexible. Con: easy to exceed by accident.
+  2. Hard-coded limits in the tool. Pro: cannot be exceeded from the command line. Con: has to be edited for real
+     use.
+- Decision: Option 2. `tools/led_test.py` limits global brightness to 32 of 255 and the number of lit LEDs to 8.
+  All LEDs are switched off on exit, on Ctrl-C and on SIGTERM.
+- Consequences: the largest test load is about 8 LEDs x 60 mA x 32/255, roughly 60 mA. The production pipeline
+  needs its own configurable current limit (planned, not implemented).
